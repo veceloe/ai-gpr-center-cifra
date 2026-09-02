@@ -62,7 +62,7 @@ Digest *──* Item             (через DigestItem)
 | id | int PK | |
 | item_id | FK Item | |
 | text | text | итоговое саммари, 3–5 предложений |
-| claims | json | список `{statement, quote, char_start, char_end}` — заземление (FR-012, FR-025) |
+| claims | json | список `{statement, quote, char_start, char_end, quote_found, entailed, reject_reason}` — вердикты обеих ступеней заземления (FR-012, FR-090, FR-092, FR-025) |
 | entities | json | `{who, what, when, consequences}` (FR-011) |
 | author | enum | `ai` · `human` |
 | model | str? | идентификатор модели |
@@ -184,7 +184,7 @@ Digest *──* Item             (через DigestItem)
 1. У `Item` в каждый момент ровно одна `Summary` и одна `Assessment` с `is_current = true`.
 2. `Assessment.index_value` всегда согласован со `scores` и текущим `config/scoring.yaml`; запись не создаётся моделью напрямую.
 3. Каждый балл в `scores` — целое число от 0 до 3.
-4. `Summary.claims` не содержит утверждений без прошедшей проверку цитаты.
+4. В итоговое саммари попадают только утверждения с `quote_found = true` И `entailed = true`. Отбракованные сохраняются в `claims` с причиной — они нужны для измерения доли отбраковки по причинам (FR-092).
 5. `Item.url` уникален; повторное поступление обновляет `content_hash` и при изменении создаёт новую версию текста.
 6. Поле, у которого есть запись в `Revision` с `author != ai`, не перезаписывается автоматической переобработкой.
 7. `Act` в состоянии `is_archived = true` не участвует в переоценке, но сохраняет хронологию и историю оценок.
