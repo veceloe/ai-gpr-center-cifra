@@ -14,7 +14,7 @@
 | Собираетесь писать код | `specs/001-ai-monitoring-center/plan.md` → `tasks.md` |
 | Хотите понять, почему так | `docs/decisions/` — шесть ADR |
 | Отвечаете за качество модели | `evals/README.md` и `docs/scoring-methodology.md` |
-| Готовите защиту | `docs/business-case.md` и `docs/hypotheses.md` |
+| Готовите защиту | `docs/business-case.md`, `docs/hypotheses.md`, `docs/competitive-research.md` |
 
 ## Структура
 
@@ -41,6 +41,7 @@ docs/
 ├── hypotheses.md            7 гипотез, одна помечена самой рискованной
 ├── business-case.md         расчёт эффекта в часах и деньгах
 ├── glossary.md              термины: одно слово — одно значение
+├── competitive-research.md  разбор 40+ смежных продуктов, 25 находок, пакет решений
 └── decisions/               ADR
 
 evals/                       эталон, разбор ошибок, метрики
