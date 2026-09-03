@@ -57,6 +57,12 @@ async def process_job() -> None:
             await session.rollback()
 
 
+async def warmup() -> None:
+    """Первый прогон сразу после старта: interval ждёт полный цикл и демо пустое."""
+    await collect_job()
+    await process_job()
+
+
 def setup_scheduler() -> AsyncIOScheduler:
     settings = get_settings()
     scheduler = AsyncIOScheduler()

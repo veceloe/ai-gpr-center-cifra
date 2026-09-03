@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 
@@ -16,7 +17,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from src.api.routes import api_router
 from src.config import get_settings
 from src.db import init_db
-from src.scheduler import setup_scheduler
+from src.scheduler import setup_scheduler, warmup
 
 logging.basicConfig(
     level=logging.INFO,
@@ -41,6 +42,8 @@ async def lifespan(app: FastAPI):
     scheduler = setup_scheduler()
     scheduler.start()
     logger.info("Планировщик запущен")
+    # Не await: иначе healthcheck деплоя не дождётся открытия порта.
+    asyncio.create_task(warmup(), name="startup-warmup")
 
     yield
 

@@ -9,13 +9,13 @@ services:
     env_file:
       - ./backend/.env
     environment:
-      DATABASE_URL: sqlite:///./data/app.db
+      DATABASE_URL: sqlite+aiosqlite:///./data/app.db
       API_HOST: 0.0.0.0
       API_PORT: 8000
     volumes:
       - backend_data:/app/data
     ports:
-      - "8000:8000"
+      - "8239:8000"
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health')"]
