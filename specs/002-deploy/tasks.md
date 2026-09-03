@@ -31,6 +31,10 @@ description: "Task list for 002-deploy"
 - [ ] T212 [PM] Сменить пароль root — он передавался текстом; после T210 он не нужен
 - [ ] T213 Автоматически: первый пуш с `backend/Dockerfile` задеплоит backend; проверка — `curl http://<HOST>:8000/api/health`
 
+- [x] T214 `deploy/deploy.sh` — запасной деплой с рабочей машины теми же шагами, пока Actions не запускается
+- [ ] T215 [PM] Открыть https://github.com/veceloe/ai-gpr-center-cifra/actions — прочитать причину `startup_failure` в баннере запуска; проверить https://github.com/settings/billing (Actions для приватных репо)
+- [ ] T216 [PM] Сервер: порт 22 отвечает `Connection refused` — SSH не запущен или на другом порту; проверить в панели хостинга
+
 ## Phase 5: Готовность backend
 
 Деплой начинается не по этой фиче, а по фиче 001: как только `backend/Dockerfile` появится в `main`, job `check` даст `ready=true`. Задачи T001–T002, T092 фичи 001 создают `backend/`; `Dockerfile` — часть T001.
