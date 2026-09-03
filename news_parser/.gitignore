@@ -1,0 +1,9 @@
+.env
+data/
+*.session
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.parquet
+.ipynb_checkpoints/
