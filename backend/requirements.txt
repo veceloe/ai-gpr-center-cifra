@@ -1,0 +1,17 @@
+fastapi>=0.115.0
+uvicorn[standard]>=0.32.0
+pydantic>=2.10.0
+pydantic-settings>=2.6.0
+sqlalchemy>=2.0.36
+aiosqlite>=0.20.0
+greenlet>=3.1.0
+httpx>=0.28.0
+apscheduler>=3.10.4
+pyyaml>=6.0.2
+python-dotenv>=1.0.1
+feedparser>=6.0.11
+selectolax>=0.3.21
+trafilatura>=1.12.0
+telethon>=1.37.0
+python-socks[asyncio]>=2.4.0
+typer>=0.15.0

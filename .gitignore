@@ -9,3 +9,10 @@ node_modules/
 *.sqlite3
 data/raw/
 .specify/manifests/
+
+# backend
+backend/.venv/
+backend/data/
+backend/.env
+backend/.pytest_cache/
+backend/.ruff_cache/

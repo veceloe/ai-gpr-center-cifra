@@ -1,0 +1,30 @@
+[project]
+name = "ai-gpr-backend"
+version = "0.1.0"
+description = "Интеллектуальный центр PR/GR-мониторинга — backend"
+requires-python = ">=3.11"
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+src = ["src"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["src"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "B", "C4", "SIM", "RUF"]
+ignore = [
+    "RUF001", # кириллица в строках — здесь это норма, а не опечатка
+    "RUF002",
+    "RUF003",
+    "B008",   # Depends() в аргументах по умолчанию — идиома FastAPI
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-q --strict-markers"
+markers = [
+    "llm: тест обращается к живой модели, по умолчанию пропускается",
+]
