@@ -43,6 +43,28 @@ description: "Task list for 001-ai-monitoring-center"
 
 ---
 
+## Phase 1.5: Интеграция драфта news_parser
+
+**Цель**: драфт Ивана становится частью `backend/` по plan.md, чужой домен вычищен, архитектурные расхождения со спецификацией закрыты. Нумерация задач — по порядку добавления, фаза вставлена после решения PM от 03.09.2026.
+
+**Что переносится как есть**: `telegram_client.py`, `telegram_factory.py`, `scripts/auth_telegram.py`, `scheduler.py`, `llm_client.py` (structured output), промпт кластеризации из `llm_topics.py`.
+
+- [ ] T092 [E1] Перенести `news_parser/app/*` в `backend/src/` по структуре plan.md: telegram → `collectors/telegram.py`, scheduler → `scheduler/`, llm_client → `llm/`; удалить `news_parser/` после переноса
+- [ ] T093 [E1] Вырезать `FILTER_SYSTEM_PROMPT` и `filter_advertisable_posts` — маркетинг Сбера, чужой домен, не имеет отношения к кейсу
+- [ ] T094 [E1] Удалить `s3_writer.py`, зависимости `boto3`/`pyarrow`, S3-поля из `config.py` — сейчас они обязательные, и без Cloud.ru приложение не стартует
+- [ ] T095 [E1] Заменить `langchain-deepseek` на прямой OpenAI-совместимый клиент; `verify=False` — в настройку `LLM_VERIFY_TLS`, по умолчанию `true`
+- [ ] T096 [E1] Источники — в таблицу `Source` по data-model.md вместо `channels.yaml`; сиды из `docs/sources.md` (FR-003)
+- [ ] T097 [E1] `fetch_channel_messages` с `min_id` от последнего сохранённого `message_id` канала вместо 200 последних каждый цикл
+- [ ] T098 [E1] Модель `Post` → `Item` по data-model.md: `url` уникален, `content_hash`, `source_id`, `item_type`, `is_partial_text` (FR-006, FR-007)
+- [ ] T099 [E1] **Убрать удаление топиков при пересчёте** (`_clear_topics`): кластер `Story` создаётся один раз и дополняется; иначе правки пользователя теряются, а ID меняются каждый час — нарушение принципа IV и FR-043
+- [ ] T100 [E1] Кластеризация — не весь период одним вызовом (месяц × 4 канала × 200 постов не влезет в контекст), а инкрементально по новым материалам в окне 7–10 дней с предотбором по эмбеддингам (research R-05)
+- [ ] T101 [P] [E1] Удалить пустой файл `app/import asyncio`; `docker-compose.yaml` — в корень репозитория, пути внутри уже от корня
+- [ ] T102 [P] [PM] Решить судьбу чужого промпта в истории коммитов (карточка B9 на доске)
+
+**Checkpoint**: `news_parser/` не существует, всё живёт в `backend/`, `python -m src.cli parse-once` собирает Telegram-каналы заказчика из базы источников.
+
+---
+
 ## Phase 2: Foundational (блокирует все истории)
 
 **⚠️ Никакая история не начинается, пока эта фаза не закрыта.**
@@ -103,7 +125,7 @@ description: "Task list for 001-ai-monitoring-center"
 - [ ] T036 [US2] [E1] Интерфейс `SourceAdapter` в `backend/src/collectors/base.py`
 - [ ] T037 [P] [US2] [E1] Адаптер RSS через feedparser
 - [ ] T038 [P] [US2] [E1] Адаптер веб-страницы списка публикаций (регуляторы) через selectolax
-- [ ] T039 [P] [US2] [E1] Адаптер Telegram через `t.me/s/<channel>` (ADR-0004)
+- [ ] T039 [P] [US2] [E1] Адаптер Telegram на Telethon из `news_parser/` (ADR-0008); запрос с `min_id` от последнего сохранённого сообщения
 - [ ] T040 [US2] [E1] **Тест** адаптеров на сохранённых снимках страниц в `tests/fixtures/`
 - [ ] T041 [US2] [E1] Дедупликация по URL при сохранении; обновление `content_hash` при изменении текста (FR-007)
 - [ ] T042 [US2] [E1] Обработка ошибок источника: запись в `last_error`, продолжение сбора остальных (FR-008)
@@ -209,6 +231,7 @@ description: "Task list for 001-ai-monitoring-center"
 ### Фазы
 
 - **Setup (1)** → **Foundational (2)** → истории → **Измерение (10)**
+- **Интеграция драфта (1.5)** идёт параллельно Setup силами E1; T099 и T100 обязаны быть закрыты до начала US6
 - Фаза 2 блокирует всё. T013 (формула) и T015 (каркас API) — самые узкие места, делать первыми.
 - Фаза 10 идёт параллельно, а не в конце: измерение, начатое накануне защиты, ничего не успеет исправить.
 
