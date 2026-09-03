@@ -1,0 +1,93 @@
+name: Deploy
+
+# Деплой на демо-сервер при каждом пуше в main, либо вручную.
+# Включается переменной репозитория DEPLOY_ENABLED=true — до этого пуши
+# не создают падающих запусков. Секреты: DEPLOY_HOST, DEPLOY_USER, DEPLOY_SSH_KEY.
+# Спецификация: specs/002-deploy/spec.md
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-demo
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: ${{ vars.DEPLOY_ENABLED == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      APP_DIR: /opt/ai-gpr-center
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Проверить compose-файл до выхода на сервер
+        run: docker compose -f docker-compose.yml config --quiet
+
+      - name: Подготовить SSH
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+        run: |
+          test -n "$DEPLOY_SSH_KEY" || { echo "::error::секрет DEPLOY_SSH_KEY не задан"; exit 1; }
+          test -n "$DEPLOY_HOST"    || { echo "::error::секрет DEPLOY_HOST не задан"; exit 1; }
+          mkdir -p ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Доставить код на сервер (rsync, .env и данные не трогаем)
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+        run: |
+          rsync -az --delete \
+            --exclude '.git' \
+            --exclude '.env' \
+            --exclude 'news_parser/.env' \
+            --exclude 'news_parser/data' \
+            --exclude 'context' \
+            -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes" \
+            ./ "$DEPLOY_USER@$DEPLOY_HOST:$APP_DIR/"
+
+      - name: Пересобрать и перезапустить
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+        run: |
+          ssh -i ~/.ssh/deploy_key "$DEPLOY_USER@$DEPLOY_HOST" bash -s <<'REMOTE'
+            set -euo pipefail
+            cd /opt/ai-gpr-center
+            test -f news_parser/.env || { echo "::error::на сервере нет news_parser/.env — создайте из .env.example"; exit 1; }
+            docker compose up -d --build --remove-orphans
+          REMOTE
+
+      - name: Health gate — сервис отвечает, иначе откат к логам и провал
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+        run: |
+          ssh -i ~/.ssh/deploy_key "$DEPLOY_USER@$DEPLOY_HOST" bash -s <<'REMOTE'
+            set -uo pipefail
+            cd /opt/ai-gpr-center
+            for i in $(seq 1 24); do
+              if curl -fsS http://127.0.0.1:8000/api/v1/health >/dev/null 2>&1; then
+                echo "health OK после $((i*5)) с"; exit 0
+              fi
+              sleep 5
+            done
+            echo "::error::сервис не ответил за 120 с"
+            docker compose ps
+            docker compose logs --tail 100
+            exit 1
+          REMOTE
+
+      - name: Итог
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+        run: echo "Задеплоено — http://$DEPLOY_HOST:8000/api/v1/health"
