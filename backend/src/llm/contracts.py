@@ -58,7 +58,7 @@ class ScoreResultRaw(BaseModel):
     rationales: dict[str, str] = Field(default_factory=dict)
     escalation_candidates: list[str] = Field(default_factory=list)
 
-    @field_validator("scores")
+    @field_validator("scores", mode="before")
     @classmethod
     def _scores_in_range(cls, v: dict[str, int]) -> dict[str, int]:
         for code, value in v.items():
