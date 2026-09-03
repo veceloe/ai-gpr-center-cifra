@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Первичная настройка демо-сервера. Запускается ОДИН раз, вручную, от root:
+# Вызывается workflow-ом при каждом деплое — идемпотентен. Можно запустить и руками:
 #   ssh root@<host> 'bash -s' < deploy/bootstrap.sh
-# Ничего секретного внутри нет; ключи и .env добавляются отдельно (см. specs/002-deploy/quickstart.md).
+# Ничего секретного внутри нет.
 set -euo pipefail
 
 APP_DIR=/opt/ai-gpr-center
@@ -25,7 +26,7 @@ systemctl enable --now docker
 docker compose version
 
 echo "== 2/4 Каталог приложения =="
-mkdir -p "$APP_DIR/news_parser"
+mkdir -p "$APP_DIR"
 
 echo "== 3/4 Файрвол (если ufw активен) =="
 if command -v ufw >/dev/null 2>&1 && ufw status | grep -q "Status: active"; then
@@ -34,12 +35,6 @@ if command -v ufw >/dev/null 2>&1 && ufw status | grep -q "Status: active"; then
   echo "открыт порт 8000"
 fi
 
-echo "== 4/4 Что осталось сделать руками =="
-cat <<'TXT'
-  1. Положить публичный ключ деплоя в ~/.ssh/authorized_keys этого пользователя.
-  2. Создать /opt/ai-gpr-center/news_parser/.env из news_parser/.env.example:
-     нужны TELEGRAM_API_ID, TELEGRAM_API_HASH, TELEGRAM_PHONE, TELEGRAM_STRING_SESSION,
-     LLM_API_KEY, LLM_BASE_URL, LLM_MODEL. S3 можно не заполнять.
-  3. Сменить пароль root, если он когда-либо передавался текстом.
-Готово: дальше деплоит GitHub Actions при пуше в main.
-TXT
+echo "== 4/4 Готово =="
+mkdir -p "$APP_DIR/backend"
+echo "Docker: $(docker --version | cut -d, -f1); каталог $APP_DIR; порт 8000. Дальше деплоит GitHub Actions."

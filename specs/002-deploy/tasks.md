@@ -23,14 +23,18 @@ description: "Task list for 002-deploy"
 - [x] T207 `deploy/bootstrap.sh`: Docker, compose-plugin, rsync, каталог, ufw (FR-208)
 - [x] T208 `quickstart.md`: ключ, секреты, `.env`, проверка (SC-204)
 
-## Phase 4: Ручные шаги — только владелец репозитория
+## Phase 4: Ручные шаги
 
-- [ ] T209 [PM] Сгенерировать ключ деплоя, положить публичную часть на сервер
-- [ ] T210 [PM] Выполнить `bootstrap.sh`, создать `.env` на сервере
-- [ ] T211 [PM] Задать `DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_SSH_KEY`, включить `DEPLOY_ENABLED`
-- [ ] T212 [PM] Запустить workflow вручную, убедиться в `{"status":"ok"}` (SC-201, SC-202)
-- [ ] T213 [PM] Сменить пароль root
+- [x] T209 Ключ деплоя `~/.ssh/ai-gpr-deploy` сгенерирован; секреты `DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_SSH_KEY` и переменная `DEPLOY_ENABLED=true` заданы
+- [ ] T210 [PM] **Единственный шаг с паролем**: положить публичный ключ на сервер — `ssh-copy-id -i ~/.ssh/ai-gpr-deploy.pub root@<HOST>`
+- [ ] T211 [E1/PM] Задать `APP_ENV` содержимым `backend/.env`, когда появятся ключи LLM: `gh secret set APP_ENV < backend/.env`
+- [ ] T212 [PM] Сменить пароль root — он передавался текстом; после T210 он не нужен
+- [ ] T213 Автоматически: первый пуш с `backend/Dockerfile` задеплоит backend; проверка — `curl http://<HOST>:8000/api/health`
+
+## Phase 5: Готовность backend
+
+Деплой начинается не по этой фиче, а по фиче 001: как только `backend/Dockerfile` появится в `main`, job `check` даст `ready=true`. Задачи T001–T002, T092 фичи 001 создают `backend/`; `Dockerfile` — часть T001.
 
 ## Notes
 
-T209–T213 не выполняются агентом по правилу: пароли, ключи и токены не вводятся и не хранятся. `quickstart.md` даёт команды готовыми.
+Пароль сервера агентом не используется и не хранится — T210 делает человек. Остальное выполнено агентом 03.09.2026.

@@ -1,8 +1,9 @@
 name: Deploy
 
-# Деплой на демо-сервер при каждом пуше в main, либо вручную.
-# Включается переменной репозитория DEPLOY_ENABLED=true — до этого пуши
-# не создают падающих запусков. Секреты: DEPLOY_HOST, DEPLOY_USER, DEPLOY_SSH_KEY.
+# Деплоит ТОЛЬКО backend/ — готовый продукт по specs/001-ai-monitoring-center/plan.md.
+# Пока backend/Dockerfile нет, job deploy помечается как skipped, а не зелёный.
+# Включается переменной репозитория DEPLOY_ENABLED=true.
+# Секреты: DEPLOY_HOST, DEPLOY_USER, DEPLOY_SSH_KEY; опционально APP_ENV — содержимое backend/.env.
 # Спецификация: specs/002-deploy/spec.md
 
 on:
@@ -15,16 +16,36 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  deploy:
-    if: ${{ vars.DEPLOY_ENABLED == 'true' }}
+  check:
+    name: Готов ли backend к деплою
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    outputs:
+      ready: ${{ steps.probe.outputs.ready }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: probe
+        run: |
+          if [ -f backend/Dockerfile ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+            echo "backend/Dockerfile найден — деплоим"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=Деплой пропущен::backend/Dockerfile ещё нет — деплоится только готовый backend"
+          fi
+
+  deploy:
+    name: Деплой backend на демо-сервер
+    needs: check
+    if: ${{ vars.DEPLOY_ENABLED == 'true' && needs.check.outputs.ready == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
     env:
       APP_DIR: /opt/ai-gpr-center
+      DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+      DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Проверить compose-файл до выхода на сервер
         run: docker compose -f docker-compose.yml config --quiet
@@ -32,7 +53,6 @@ jobs:
       - name: Подготовить SSH
         env:
           DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
-          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
         run: |
           test -n "$DEPLOY_SSH_KEY" || { echo "::error::секрет DEPLOY_SSH_KEY не задан"; exit 1; }
           test -n "$DEPLOY_HOST"    || { echo "::error::секрет DEPLOY_HOST не задан"; exit 1; }
@@ -40,54 +60,51 @@ jobs:
           printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+          echo "SSH_OPTS=-i $HOME/.ssh/deploy_key -o StrictHostKeyChecking=yes -o ConnectTimeout=20" >> "$GITHUB_ENV"
 
-      - name: Доставить код на сервер (rsync, .env и данные не трогаем)
-        env:
-          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
-          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+      - name: Подготовить сервер (Docker, каталог, порт) — идемпотентно
+        run: ssh $SSH_OPTS "$DEPLOY_USER@$DEPLOY_HOST" 'bash -s' < deploy/bootstrap.sh
+
+      - name: Доставить код (rsync; .env, данные и context/ не трогаем)
         run: |
           rsync -az --delete \
-            --exclude '.git' \
-            --exclude '.env' \
-            --exclude 'news_parser/.env' \
-            --exclude 'news_parser/data' \
-            --exclude 'context' \
-            -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes" \
+            --exclude '.git' --exclude '.github' \
+            --exclude '.env' --exclude 'backend/.env' --exclude 'backend/data' \
+            --exclude 'news_parser' --exclude 'context' --exclude 'specs' --exclude 'docs' \
+            -e "ssh $SSH_OPTS" \
             ./ "$DEPLOY_USER@$DEPLOY_HOST:$APP_DIR/"
 
-      - name: Пересобрать и перезапустить
+      - name: Конфигурация приложения из секрета APP_ENV (если задан)
         env:
-          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
-          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          APP_ENV: ${{ secrets.APP_ENV }}
         run: |
-          ssh -i ~/.ssh/deploy_key "$DEPLOY_USER@$DEPLOY_HOST" bash -s <<'REMOTE'
-            set -euo pipefail
-            cd /opt/ai-gpr-center
-            test -f news_parser/.env || { echo "::error::на сервере нет news_parser/.env — создайте из .env.example"; exit 1; }
-            docker compose up -d --build --remove-orphans
-          REMOTE
+          if [ -n "$APP_ENV" ]; then
+            printf '%s\n' "$APP_ENV" | ssh $SSH_OPTS "$DEPLOY_USER@$DEPLOY_HOST" "umask 077; cat > $APP_DIR/backend/.env"
+            echo "backend/.env записан из APP_ENV"
+          else
+            ssh $SSH_OPTS "$DEPLOY_USER@$DEPLOY_HOST" "touch $APP_DIR/backend/.env"
+            echo "::warning::секрет APP_ENV не задан — backend/.env пустой, LLM-вызовы работать не будут"
+          fi
 
-      - name: Health gate — сервис отвечает, иначе откат к логам и провал
-        env:
-          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
-          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+      - name: Пересобрать и перезапустить
+        run: ssh $SSH_OPTS "$DEPLOY_USER@$DEPLOY_HOST" "cd $APP_DIR && docker compose up -d --build --remove-orphans"
+
+      - name: Health gate — /api/health отвечает, иначе логи и провал
         run: |
-          ssh -i ~/.ssh/deploy_key "$DEPLOY_USER@$DEPLOY_HOST" bash -s <<'REMOTE'
+          ssh $SSH_OPTS "$DEPLOY_USER@$DEPLOY_HOST" bash -s <<'REMOTE'
             set -uo pipefail
             cd /opt/ai-gpr-center
             for i in $(seq 1 24); do
-              if curl -fsS http://127.0.0.1:8000/api/v1/health >/dev/null 2>&1; then
+              if curl -fsS http://127.0.0.1:8000/api/health >/dev/null 2>&1; then
                 echo "health OK после $((i*5)) с"; exit 0
               fi
               sleep 5
             done
-            echo "::error::сервис не ответил за 120 с"
+            echo "::error::backend не ответил на /api/health за 120 с"
             docker compose ps
             docker compose logs --tail 100
             exit 1
           REMOTE
 
       - name: Итог
-        env:
-          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
-        run: echo "Задеплоено — http://$DEPLOY_HOST:8000/api/v1/health"
+        run: echo "Задеплоено — http://$DEPLOY_HOST:8000/api/health"

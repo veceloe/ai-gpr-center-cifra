@@ -1,0 +1,24 @@
+# Локальный запуск драфта. На сервер не деплоится — см. docker-compose.yml в корне.
+services:
+  news_parser:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ai-gpr-news-parser-dev
+    env_file:
+      - ./.env
+    environment:
+      DATABASE_URL: sqlite+aiosqlite:///./data/news.db
+      TELEGRAM_SESSION_PATH: ./data/telegram.session
+      CHANNELS_CONFIG: /app/config/channels.yaml
+      API_HOST: 0.0.0.0
+      API_PORT: 8000
+    volumes:
+      - news_parser_data:/app/data
+      - ./config:/app/config:ro
+    ports:
+      - "8001:8000"
+    restart: unless-stopped
+
+volumes:
+  news_parser_data:

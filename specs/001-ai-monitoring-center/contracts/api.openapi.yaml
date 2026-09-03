@@ -19,6 +19,14 @@ tags:
   - name: digests
 
 paths:
+  /health:
+    get:
+      summary: Живость сервиса — используется health gate деплоя (specs/002-deploy)
+      responses:
+        "200":
+          description: OK
+          content: { application/json: { schema: { type: object, required: [status], properties: { status: { type: string, enum: [ok] } } } } }
+
   /feed:
     get:
       tags: [feed]

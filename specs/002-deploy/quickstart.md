@@ -1,47 +1,33 @@
 # Quickstart: ввод сервера в строй
 
-Три шага делает человек — все связаны с секретами, которые не должны проходить через агента, чат или репозиторий.
+Почти всё сделано. Секреты в GitHub заданы, ключ деплоя сгенерирован, пайплайн ждёт `backend/`.
 
-## Шаг 1. Ключ деплоя
+## Единственный ручной шаг — публичный ключ на сервер
 
-Отдельный ключ только для CI — не личный:
-
-```bash
-ssh-keygen -t ed25519 -f ~/.ssh/ai-gpr-deploy -N "" -C "github-actions-deploy"
-```
-
-Публичную часть — на сервер (спросит пароль root один раз):
+Требует пароля root один раз, поэтому его делает человек:
 
 ```bash
 ssh-copy-id -i ~/.ssh/ai-gpr-deploy.pub root@<HOST>
 ```
 
-## Шаг 2. Сервер
+Проверка, что ключ встал (пароль больше не спросит):
 
 ```bash
-ssh -i ~/.ssh/ai-gpr-deploy root@<HOST> 'bash -s' < deploy/bootstrap.sh
+ssh -i ~/.ssh/ai-gpr-deploy root@<HOST> 'echo ok && docker --version || echo "docker поставит workflow"'
 ```
 
-Затем на сервере создать `/opt/ai-gpr-center/news_parser/.env` из `news_parser/.env.example`. Обязательные: `TELEGRAM_API_ID`, `TELEGRAM_API_HASH`, `TELEGRAM_PHONE`, `TELEGRAM_STRING_SESSION` (из `python -m scripts.auth_telegram` локально), `LLM_API_KEY`, `LLM_BASE_URL`, `LLM_MODEL`. S3 — не заполнять.
-
-## Шаг 3. Секреты GitHub и выключатель
+## Когда появятся ключи LLM и Telegram
 
 ```bash
-gh secret set DEPLOY_HOST --body "<HOST>"
-gh secret set DEPLOY_USER --body "root"
-gh secret set DEPLOY_SSH_KEY < ~/.ssh/ai-gpr-deploy
-gh variable set DEPLOY_ENABLED --body "true"
+gh secret set APP_ENV < backend/.env
 ```
 
-## Проверка
+Без этого backend задеплоится, `/api/health` ответит, но обработка материалов работать не будет.
 
-```bash
-gh workflow run deploy.yml && sleep 20 && gh run watch
-curl http://<HOST>:8000/api/v1/health
-```
+## Что происходит дальше само
 
-Ожидаемо: `{"status":"ok"}`. Дальше каждый пуш в `main` деплоит сам.
+Первый пуш в `main`, в котором есть `backend/Dockerfile`, запускает деплой: Docker на сервере, код, `.env`, `compose up`, проверка `/api/health`. Смотреть: `gh run watch`. Проверять: `curl http://<HOST>:8000/api/health`.
 
-## После настройки
+## После
 
-Сменить пароль root, если он передавался текстом где бы то ни было. Ключ деплоя его заменяет полностью; парольный вход по SSH можно отключить.
+Сменить пароль root. Ключ его заменяет; парольный вход по SSH можно отключить.

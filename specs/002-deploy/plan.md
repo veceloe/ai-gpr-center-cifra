@@ -14,7 +14,7 @@ GitHub Actions при пуше в `main` доставляет репозитор
 
 **Доставка**: rsync с раннера. Альтернатива `git pull` на сервере отвергнута: потребовала бы deploy-key к приватному репозиторию на сервере — лишняя точка утечки.
 
-**Секреты**: `DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_SSH_KEY` (приватный ключ, только для деплоя, не личный). Приложение читает `news_parser/.env` на сервере.
+**Секреты**: `DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_SSH_KEY` (ключ `~/.ssh/ai-gpr-deploy`, только для деплоя) — заданы 03.09.2026. `APP_ENV` — содержимое `backend/.env`. Пуш в репозиторий с машины PM — через deploy key `~/.ssh/ai-gpr-github` с правом записи: OAuth-токен `gh` не может создавать workflow-файлы без scope `workflow`, SSH-ключ этого ограничения не имеет.
 
 **Выключатель**: `vars.DEPLOY_ENABLED` — job не создаётся, пока не `true`.
 
@@ -43,13 +43,20 @@ specs/002-deploy/
 └── tasks.md
 ```
 
+## Цель деплоя
+
+Только `backend/` (FR-210). Job `check` смотрит на `backend/Dockerfile`; без него job `deploy` пропускается — в интерфейсе Actions это видно как skipped, а не как успех. `news_parser/` исключён из rsync и имеет собственный dev-compose внутри каталога.
+
 ## Ход деплоя
 
-1. `docker compose config` на раннере — ловит синтаксис до сервера.
-2. SSH-ключ из секрета → `~/.ssh/deploy_key`, `ssh-keyscan` хоста.
-3. `rsync --delete` с исключениями: `.git`, `.env`, `news_parser/.env`, `news_parser/data`, `context/`.
-4. На сервере: проверка наличия `.env`, `docker compose up -d --build --remove-orphans`.
-5. Health gate: до 24 попыток по 5 с на `/api/v1/health`; провал → `compose ps` + логи + exit 1.
+1. `check`: есть ли `backend/Dockerfile` → `ready`.
+2. `docker compose config` на раннере — ловит синтаксис до сервера.
+3. SSH-ключ из секрета → `~/.ssh/deploy_key`, `ssh-keyscan` хоста.
+4. `deploy/bootstrap.sh` по SSH — Docker, каталог, порт; идемпотентно (FR-211).
+5. `rsync --delete` с исключениями: `.git`, `.github`, `.env`, `backend/.env`, `backend/data`, `news_parser/`, `context/`, `specs/`, `docs/`.
+6. `backend/.env` из секрета `APP_ENV`, иначе пустой файл и предупреждение (FR-212).
+7. `docker compose up -d --build --remove-orphans`.
+8. Health gate: до 24 попыток по 5 с на `/api/health`; провал → `compose ps` + логи + exit 1.
 
 ## Что сделано в коде ради запускаемости
 

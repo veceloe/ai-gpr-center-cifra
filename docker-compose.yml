@@ -1,43 +1,28 @@
+# Деплой-конфигурация демо-сервера: только backend по specs/001-ai-monitoring-center/plan.md.
+# Драфт news_parser/ здесь не участвует — у него свой dev-compose внутри каталога.
 services:
-  news_parser:
+  backend:
     build:
-      context: ./news_parser
+      context: ./backend
       dockerfile: Dockerfile
-    container_name: ai-gpr-news-parser
+    container_name: ai-gpr-backend
     env_file:
-      - ./news_parser/.env
+      - ./backend/.env
     environment:
-      DATABASE_URL: sqlite+aiosqlite:///./data/news.db
-      TELEGRAM_SESSION_PATH: ./data/telegram.session
-      CHANNELS_CONFIG: /app/config/channels.yaml
+      DATABASE_URL: sqlite:///./data/app.db
       API_HOST: 0.0.0.0
       API_PORT: 8000
     volumes:
-      - news_parser_data:/app/data
-      - ./news_parser/config:/app/config:ro
+      - backend_data:/app/data
     ports:
       - "8000:8000"
     restart: unless-stopped
-    networks:
-      - ai-gpr
     healthcheck:
-      test:
-        [
-          "CMD",
-          "python",
-          "-c",
-          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/v1/health')",
-        ]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health')"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 60s
-
+      start_period: 40s
 
 volumes:
-  news_parser_data:
-
-networks:
-  ai-gpr:
-    name: ai-gpr
-
+  backend_data:
