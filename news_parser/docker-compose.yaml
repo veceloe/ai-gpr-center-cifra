@@ -1,0 +1,41 @@
+services:
+  news_parser:
+    build:
+      context: ./news_parser
+      dockerfile: Dockerfile
+    container_name: makak-news-parser
+    env_file:
+      - ./news_parser/.env
+    environment:
+      DATABASE_URL: sqlite+aiosqlite:///./data/news.db
+      TELEGRAM_SESSION_PATH: ./data/telegram.session
+      CHANNELS_CONFIG: /app/config/channels.yaml
+      API_HOST: 0.0.0.0
+      API_PORT: 8000
+    volumes:
+      - news_parser_data:/app/data
+      - ./news_parser/config:/app/config:ro
+    restart: unless-stopped
+    networks:
+      - makak
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/v1/health')",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+
+volumes:
+  news_parser_data:
+
+networks:
+  makak:
+    name: makak
+
