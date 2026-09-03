@@ -46,6 +46,8 @@ docs/
 
 evals/                       эталон, разбор ошибок, метрики
 news_parser/                 драфт Ивана — ядро дорожки E1, переезжает в backend/ (фаза 1.5 в tasks.md)
+.github/workflows/deploy.yml пуш в main → rsync на сервер → compose → health gate; спека в specs/002-deploy/
+deploy/bootstrap.sh          первичная настройка сервера, запускается человеком один раз
 context/                     первоисточники заказчика, только чтение
 AGENTS.md                    правила для агентов (CLAUDE.md → симлинк)
 ```

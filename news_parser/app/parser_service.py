@@ -5,7 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.config import load_channels
+from app.config import get_settings, load_channels
 from app.models import Post
 from app.s3_writer import upload_posts_to_s3
 from app.telegram_client import TelegramParser
@@ -27,8 +27,9 @@ async def parse_all_channels(session: AsyncSession) -> int:
             now = datetime.now(timezone.utc)
             s3_rows.extend({**msg, "fetched_at": now} for msg in messages)
         await session.commit()
-        # Один batch-вызов — без race condition
-        await upload_posts_to_s3(s3_rows)
+        # Один batch-вызов — без race condition. Выгрузка только если S3 настроен.
+        if get_settings().s3_enabled:
+            await upload_posts_to_s3(s3_rows)
     finally:
         await parser.disconnect()
     logger.info("Parser saved %d new posts", saved)

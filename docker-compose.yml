@@ -3,7 +3,7 @@ services:
     build:
       context: ./news_parser
       dockerfile: Dockerfile
-    container_name: makak-news-parser
+    container_name: ai-gpr-news-parser
     env_file:
       - ./news_parser/.env
     environment:
@@ -15,9 +15,11 @@ services:
     volumes:
       - news_parser_data:/app/data
       - ./news_parser/config:/app/config:ro
+    ports:
+      - "8000:8000"
     restart: unless-stopped
     networks:
-      - makak
+      - ai-gpr
     healthcheck:
       test:
         [
@@ -36,6 +38,6 @@ volumes:
   news_parser_data:
 
 networks:
-  makak:
-    name: makak
+  ai-gpr:
+    name: ai-gpr
 

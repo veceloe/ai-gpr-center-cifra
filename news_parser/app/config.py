@@ -65,13 +65,17 @@ class Settings(BaseSettings):
         validation_alias="CHANNELS_CONFIG",
     )
 
-    # --- S3 (Cloud.ru OBS) — берутся из CI/CD переменных ---
-    s3_endpoint_url: str
-    s3_bucket: str
-    s3_prefix: str = "campaign/outer_news"
+    # --- S3 (опционально; выгрузка включается, только если задан endpoint) ---
+    s3_endpoint_url: str = ""
+    s3_bucket: str = ""
+    s3_prefix: str = "posts"
     s3_region: str = "ru-1"
-    s3_access_key: str
-    s3_secret_key: str
+    s3_access_key: str = ""
+    s3_secret_key: str = ""
+
+    @property
+    def s3_enabled(self) -> bool:
+        return bool(self.s3_endpoint_url.strip() and self.s3_bucket.strip())
 
 
 @lru_cache
