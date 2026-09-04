@@ -28,8 +28,9 @@ def verify_against_registry(dataset_path: Path) -> dict:
 
     checked = 0
     matched = 0
-    mismatches: list[dict] = []
+    index_mismatches: list[dict] = []
     category_mismatches: list[dict] = []
+    final_category_mismatches: list[dict] = []
 
     for row in rows:
         expected = row.get("gold_index")
@@ -50,7 +51,7 @@ def verify_against_registry(dataset_path: Path) -> dict:
         if abs(result.index_value - expected) <= TOLERANCE:
             matched += 1
         else:
-            mismatches.append(
+            index_mismatches.append(
                 {
                     "id": row["id"],
                     "computed": result.index_value,
@@ -59,9 +60,20 @@ def verify_against_registry(dataset_path: Path) -> dict:
                 }
             )
 
+        gold_category = (row.get("gold_category") or "").strip()
+        if gold_category and result.category != gold_category:
+            category_mismatches.append(
+                {
+                    "id": row["id"],
+                    "computed": result.category,
+                    "expected": gold_category,
+                    "index": result.index_value,
+                }
+            )
+
         gold_final = (row.get("gold_final_category") or "").strip()
         if gold_final and result.final_category != gold_final:
-            category_mismatches.append(
+            final_category_mismatches.append(
                 {
                     "id": row["id"],
                     "computed": result.final_category,
@@ -74,6 +86,8 @@ def verify_against_registry(dataset_path: Path) -> dict:
     return {
         "checked": checked,
         "matched": matched,
-        "mismatches": mismatches,
+        "mismatches": index_mismatches,
+        "index_mismatches": index_mismatches,
         "category_mismatches": category_mismatches,
+        "final_category_mismatches": final_category_mismatches,
     }

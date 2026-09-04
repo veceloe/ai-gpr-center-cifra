@@ -220,18 +220,47 @@ def cmd_verify_formula(
     """
     from src.evals.formula_check import verify_against_registry
 
-    report = verify_against_registry(dataset)
-    typer.echo(f"Проверено карточек: {report['checked']}")
-    typer.echo(f"Совпало с реестром: {report['matched']}")
-    if report["mismatches"]:
-        typer.echo("\nРасхождения:")
-        for m in report["mismatches"]:
+    try:
+        report = verify_against_registry(dataset)
+    except Exception as exc:
+        typer.echo(f"Не удалось прочитать эталон {dataset}: {exc}", err=True)
+        raise typer.Exit(1) from exc
+
+    index_mismatches = report["index_mismatches"]
+    category_mismatches = report["category_mismatches"]
+    final_category_mismatches = report["final_category_mismatches"]
+
+    typer.echo(f"Проверено фактических карточек: {report['checked']}")
+    typer.echo(f"Совпало по индексу: {report['matched']}")
+    typer.echo(f"Index mismatches: {len(index_mismatches)}")
+    typer.echo(f"Category mismatches: {len(category_mismatches)}")
+    typer.echo(f"Final category mismatches: {len(final_category_mismatches)}")
+
+    if index_mismatches:
+        typer.echo("\nРасхождения индекса:")
+        for m in index_mismatches:
             typer.echo(
                 f"  #{m['id']}: наш {m['computed']} против {m['expected']} в реестре "
                 f"(баллы {m['scores']})"
             )
+
+    if category_mismatches:
+        typer.echo("\nРасхождения базовой категории:")
+        for m in category_mismatches:
+            typer.echo(f"  #{m['id']}: наша {m['computed']} против {m['expected']} в реестре")
+
+    if final_category_mismatches:
+        typer.echo("\nРасхождения итоговой категории:")
+        for m in final_category_mismatches:
+            typer.echo(
+                f"  #{m['id']}: наша {m['computed']} против {m['expected']} в реестре "
+                f"(индекс {m['index']})"
+            )
+
+    if index_mismatches or category_mismatches or final_category_mismatches:
         raise typer.Exit(1)
-    typer.echo("Формула воспроизводит методику заказчика точно")
+
+    typer.echo("Формула воспроизводит 42 фактические карточки реестра точно")
 
 
 @app.command("telegram-login")

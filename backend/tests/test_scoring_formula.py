@@ -9,7 +9,9 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+from typer.testing import CliRunner
 
+from src.cli import app
 from src.evals.formula_check import verify_against_registry
 from src.models import AssessmentScheme
 from src.scoring import ScoringError, get_scoring_config, score
@@ -80,17 +82,26 @@ class TestKnownCards:
 
 
 class TestEscalation:
-    def test_flag_bumps_category_one_step(self) -> None:
-        """Флаг поднимает категорию ровно на одну ступень — FR-017."""
+    @pytest.mark.parametrize(
+        "scores,base_category,final_category",
+        [
+            ({"К1": 0, "К2": 0, "К3": 0, "К4": 0, "К5": 0, "К6": 0}, "Незначительное", "Высокое"),
+            ({"К1": 0, "К2": 0, "К3": 0, "К4": 0, "К5": 3, "К6": 3}, "Низкое", "Высокое"),
+            ({"К1": 3, "К2": 2, "К3": 3, "К4": 0, "К5": 0, "К6": 3}, "Среднее", "Высокое"),
+            ({"К1": 0, "К2": 3, "К3": 3, "К4": 3, "К5": 3, "К6": 3}, "Высокое", "Высокое"),
+            ({"К1": 3, "К2": 3, "К3": 3, "К4": 3, "К5": 3, "К6": 3}, "Критическое", "Критическое"),
+        ],
+    )
+    def test_npa_flag_sets_final_category_to_high_unless_already_critical(
+        self, scores: dict[str, int], base_category: str, final_category: str
+    ) -> None:
+        """Excel-реестр: флаг НПА делает итоговую категорию не ниже «Высокое»."""
         flag = get_scoring_config().escalation_flags[0].text
-        result = score(
-            {"К1": 3, "К2": 2, "К3": 3, "К4": 0, "К5": 0, "К6": 3},
-            AssessmentScheme.NPA_K1_K6,
-            escalation_candidates=[flag],
-        )
-        assert result.category == "Среднее"
-        assert result.final_category == "Высокое"
-        assert result.escalated is True
+        result = score(scores, AssessmentScheme.NPA_K1_K6, escalation_candidates=[flag])
+
+        assert result.category == base_category
+        assert result.final_category == final_category
+        assert result.escalated == (base_category != final_category)
 
     def test_unknown_flag_text_is_discarded(self) -> None:
         """Свободная формулировка от модели не считается флагом.
@@ -114,6 +125,18 @@ class TestEscalation:
         )
         assert result.index_value == 100.0
         assert result.final_category == "Критическое"
+
+    def test_news_ignores_escalation_candidates(self) -> None:
+        """Для news методика флагов эскалации не задаёт."""
+        flag = get_scoring_config().escalation_flags[0].text
+        result = score(
+            {"Н1": 0, "Н2": 1, "Н3": 0, "Н4": 3},
+            AssessmentScheme.NEWS_H1_H4,
+            escalation_candidates=[flag],
+        )
+        assert result.category == "На заметку"
+        assert result.final_category == "На заметку"
+        assert result.escalation_flags == []
 
 
 class TestRelevance:
@@ -171,3 +194,55 @@ class TestConfigIntegrity:
         assert npa == [0, 25, 50, 75, 90]
         news = [c.min_score for c in get_scoring_config().news.ordered_categories]
         assert news == [0, 25, 50, 75]
+
+
+class TestVerifyFormulaCli:
+    def _write_dataset(self, path: Path, **overrides) -> None:
+        import json
+
+        row = {
+            "id": 999,
+            "kind": "act",
+            "gold_scores": {"К1": 0, "К2": 0, "К3": 0, "К4": 0, "К5": 0, "К6": 0},
+            "gold_index": 0.0,
+            "gold_category": "Незначительное",
+            "gold_escalation": False,
+            "gold_final_category": "Незначительное",
+        }
+        row.update(overrides)
+        path.write_text(json.dumps(row, ensure_ascii=False) + "\n", encoding="utf-8")
+
+    def test_verify_formula_cli_exits_nonzero_on_index_mismatch(self, tmp_path: Path) -> None:
+        dataset = tmp_path / "registry.jsonl"
+        self._write_dataset(dataset, gold_index=1.0)
+
+        result = CliRunner().invoke(app, ["verify-formula", "--dataset", str(dataset)])
+
+        assert result.exit_code == 1
+        assert "Index mismatches: 1" in result.output
+
+    def test_verify_formula_cli_exits_nonzero_on_base_category_mismatch(self, tmp_path: Path) -> None:
+        dataset = tmp_path / "registry.jsonl"
+        self._write_dataset(dataset, gold_category="Низкое")
+
+        result = CliRunner().invoke(app, ["verify-formula", "--dataset", str(dataset)])
+
+        assert result.exit_code == 1
+        assert "Category mismatches: 1" in result.output
+
+    def test_verify_formula_cli_exits_nonzero_on_final_category_mismatch(self, tmp_path: Path) -> None:
+        dataset = tmp_path / "registry.jsonl"
+        self._write_dataset(dataset, gold_final_category="Высокое")
+
+        result = CliRunner().invoke(app, ["verify-formula", "--dataset", str(dataset)])
+
+        assert result.exit_code == 1
+        assert "Final category mismatches: 1" in result.output
+
+    def test_verify_formula_cli_exits_nonzero_on_read_error(self, tmp_path: Path) -> None:
+        missing = tmp_path / "missing.jsonl"
+
+        result = CliRunner().invoke(app, ["verify-formula", "--dataset", str(missing)])
+
+        assert result.exit_code == 1
+        assert "Не удалось прочитать эталон" in result.output

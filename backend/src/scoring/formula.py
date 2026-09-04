@@ -7,7 +7,8 @@
 
     ИВ = ( Σ (балл_i × вес_i) / divisor ) × 100,  округление до 0,1
 
-Проверено на 46 карточках реестра — tests/test_scoring_formula.py.
+Проверено на 42 фактических карточках реестра с исходной нумерацией до 46 —
+tests/test_scoring_formula.py.
 """
 
 from __future__ import annotations
@@ -89,23 +90,17 @@ def resolve_category(index: float, scheme: SchemeConfig) -> tuple[str, str]:
 
 
 def apply_escalation(category: str, flags: list[str], scheme: SchemeConfig) -> tuple[str, str]:
-    """Сработавший флаг поднимает категорию на одну ступень — FR-017.
+    """Для НПА сработавший флаг делает итоговую категорию не ниже «Высокое» — FR-017.
 
-    Пример из реестра заказчика: карточка № 1 (CAS DRM) имеет индекс 65 → «Среднее»,
-    но с флагом эскалации итоговая категория — «Высокое».
+    Excel-реестр заказчика применяет правило:
+    если флаг стоит и базовая категория не «Критическое», итоговая категория — «Высокое».
+    Для новостей флаги эскалации методикой не предусмотрены.
     """
-    if not flags:
+    if not flags or scheme.scheme != AssessmentScheme.NPA_K1_K6:
         return resolve_category_by_name(category, scheme)
 
-    ordered = scheme.ordered_categories
-    names = [c.name for c in ordered]
-    try:
-        position = names.index(category)
-    except ValueError as exc:  # pragma: no cover - невозможно при корректном конфиге
-        raise ScoringError(f"категория {category!r} отсутствует в шкале") from exc
-
-    bumped = ordered[min(position + 1, len(ordered) - 1)]
-    return bumped.name, bumped.reaction
+    target = "Критическое" if category == "Критическое" else "Высокое"
+    return resolve_category_by_name(target, scheme)
 
 
 def resolve_category_by_name(name: str, scheme: SchemeConfig) -> tuple[str, str]:
@@ -141,7 +136,11 @@ def score(
     index, contributions = compute_index(clean, scheme_cfg)
     category, reaction = resolve_category(index, scheme_cfg)
 
-    flags = normalize_flags(escalation_candidates, cfg)
+    flags = (
+        normalize_flags(escalation_candidates, cfg)
+        if scheme_cfg.scheme == AssessmentScheme.NPA_K1_K6
+        else []
+    )
     final_category, final_reaction = apply_escalation(category, flags, scheme_cfg)
 
     # Релевантность выводится из критерия применимости, а не запрашивается отдельно:

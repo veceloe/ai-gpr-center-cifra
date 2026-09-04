@@ -46,7 +46,7 @@ class Assessment(Base):
     index_value: Mapped[float] = mapped_column(Float, index=True)
     category: Mapped[str] = mapped_column(String(32))
     escalation_flags: Mapped[list[str]] = mapped_column(JSON, default=list)
-    # Категория после применения флагов: флаг поднимает на одну ступень (FR-017)
+    # Категория после применения флагов: для НПА флаг делает её не ниже «Высокое» (FR-017)
     final_category: Mapped[str] = mapped_column(String(32), index=True)
 
     author: Mapped[Author] = mapped_column(String(8), default=Author.AI)
