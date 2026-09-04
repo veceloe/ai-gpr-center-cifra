@@ -2,7 +2,7 @@
 
 Кейс ООО «Цифра» (GS Labs), ITMO AI Product Hack. Продукт заменяет 3–4 часа ежедневного ручного мониторинга информационного поля на 10–15 минут утреннего разбора.
 
-**Состояние: backend реализован по спецификации — 55 тестов, формула сверена с реестром заказчика. Фронтенда нет.**
+**Состояние: backend PoC реализует LLM-слой, двухступенчатое заземление и детерминированный скоринг; ключевые части покрыты synthetic/unit tests. Фронтенда нет, полный live/E2E статус не заявлен.**
 
 Проект ведётся по [GitHub Spec Kit](https://github.com/github/spec-kit): источник истины — спецификация, код производен от неё.
 
@@ -12,7 +12,7 @@
 |---|---|
 | Впервые видите проект | `specs/001-ai-monitoring-center/spec.md` — что строим и зачем |
 | Собираетесь писать код | `specs/001-ai-monitoring-center/plan.md` → `tasks.md` |
-| Хотите понять, почему так | `docs/decisions/` — шесть ADR |
+| Хотите понять, почему так | `docs/decisions/` — ADR |
 | Отвечаете за качество модели | `evals/README.md` и `docs/scoring-methodology.md` |
 | Готовите защиту | `docs/business-case.md`, `docs/hypotheses.md`, `docs/competitive-research.md` |
 
@@ -61,8 +61,4 @@ AGENTS.md                    правила для агентов (CLAUDE.md →
 
 ## Дальше
 
-```bash
-/speckit-analyze
-```
-
-Ревью согласованности `spec.md`, `plan.md` и `tasks.md` агентом с чистым контекстом. После него — `/speckit-implement` и первая задача T001.
+Работать от `specs/001-ai-monitoring-center/tasks.md`; для локальных backend-проверок см. `backend/README.md`.
