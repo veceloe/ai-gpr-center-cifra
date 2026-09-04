@@ -30,11 +30,13 @@ class StubProvider:
 
     def __init__(self, **overrides) -> None:
         self.calls: list[str] = []
+        self.users: list[tuple[str, str]] = []
         self.overrides = overrides
         self.fail_on: set[str] = set()
 
     async def complete_json(self, prompt_id, system, user, schema):
         self.calls.append(prompt_id)
+        self.users.append((prompt_id, user))
         if prompt_id in self.fail_on:
             raise LLMError(f"смоделированный отказ на {prompt_id}")
         if prompt_id in self.overrides:
@@ -93,6 +95,7 @@ async def test_full_pipeline_produces_grounded_and_scored_card(
     assert len(summary.accepted_claims) == 2
     assert "Государственная Дума приняла закон об ИИ." in summary.text
     assert summary.prompt_version == "summarize/v1"
+    assert provider.calls[:4] == ["summarize/v1", "verify_claims/v1", "classify/v1", "score_npa/v1"]
 
     assessment = item.current_assessment
     assert assessment is not None
@@ -161,6 +164,55 @@ async def test_ungrounded_claim_never_reaches_summary(
     assert "штраф" not in summary.text.lower(), "выдуманный факт попал в саммари"
     assert len(summary.claims) == 2, "отбракованное утверждение должно сохраняться"
     assert len(summary.rejected_claims) == 1
+
+
+@pytest.mark.asyncio
+async def test_semantically_rejected_claim_never_reaches_summary_or_scoring(
+    session: AsyncSession, item: Item, profile: CompanyProfile
+) -> None:
+    """Настоящая цитата с неверным смыслом отбрасывается до классификации и оценки."""
+    provider = StubProvider(
+        **{
+            "summarize/v1": SummarizeResult.model_validate(
+                {
+                    "claims": [
+                        {
+                            "statement": "Государственная Дума приняла закон об ИИ",
+                            "quote": "Государственная Дума приняла закон о поддержке технологий",
+                        },
+                        {
+                            "statement": "Закон вводит уголовную ответственность за дипфейки",
+                            "quote": "Маркировка контента становится обязательной с 1 марта 2027 года",
+                        },
+                    ],
+                    "entities": {"who": [], "what": "", "when": "", "consequences": ""},
+                }
+            ),
+            "verify_claims/v1": VerifyClaimsResult(
+                verdicts=[
+                    ClaimVerdict(index=0, entailed=True),
+                    ClaimVerdict(
+                        index=1,
+                        entailed=False,
+                        reason="Цитата говорит о маркировке, а не об уголовной ответственности.",
+                    ),
+                ]
+            ),
+        }
+    )
+
+    await process_item(session, item, provider, profile)
+
+    summary = item.current_summary
+    assert summary is not None
+    assert "Государственная Дума приняла закон об ИИ." in summary.text
+    assert "уголовн" not in summary.text.lower()
+    assert summary.rejected_claims[0]["reject_reason"] == "not_entailed"
+    downstream_payloads = [
+        user for prompt_id, user in provider.users if prompt_id in {"classify/v1", "score_npa/v1"}
+    ]
+    assert downstream_payloads
+    assert all("уголовную ответственность" not in user for user in downstream_payloads)
 
 
 @pytest.mark.asyncio

@@ -8,6 +8,8 @@
 
 from __future__ import annotations
 
+import json
+
 import pytest
 
 from src.llm.contracts import Claim, ClaimVerdict, VerifyClaimsResult
@@ -86,6 +88,32 @@ class TestStageOneQuoteLookup:
         assert span is not None
         assert "миллиард" in SOURCE[span[0] : span[1]]
 
+    def test_offsets_survive_nfkc_expansion_before_quote(self) -> None:
+        """Символы вроде № расширяются при NFKC, но offsets всё равно указывают в raw_text."""
+        source_text = "Законопроект № 1215252-8: Маркировка контента обязательна."
+        claims = check_quotes(
+            [Claim(statement="Маркировка обязательна.", quote="Маркировка контента обязательна")],
+            source_text,
+        )
+
+        assert claims[0]["quote_found"] is True
+        assert source_text[claims[0]["char_start"] : claims[0]["char_end"]] == (
+            "Маркировка контента обязательна"
+        )
+
+    def test_repeated_quote_points_to_an_actual_occurrence(self) -> None:
+        """Повтор цитаты допустим: подсветка должна указывать на реальный фрагмент оригинала."""
+        source_text = "Минцифры подготовило проект. Минцифры подготовило проект повторно."
+        claims = check_quotes(
+            [Claim(statement="Минцифры подготовило проект.", quote="Минцифры подготовило проект")],
+            source_text,
+        )
+
+        assert claims[0]["quote_found"] is True
+        assert source_text[claims[0]["char_start"] : claims[0]["char_end"]] == (
+            "Минцифры подготовило проект"
+        )
+
     def test_short_quote_requires_exact_match(self) -> None:
         """На коротких строках нестрогое совпадение перестаёт что-либо гарантировать."""
         claims = check_quotes([Claim(statement="Что-то про ИИ.", quote="закон об ИИ")], SOURCE)
@@ -146,6 +174,53 @@ class TestStageTwoEntailment:
         assert len(provider.calls) == 1
 
     @pytest.mark.asyncio
+    async def test_verifier_receives_only_stage_one_survivors(self) -> None:
+        claims = check_quotes(
+            [
+                Claim(statement="Закон принят.", quote="Государственная Дума приняла закон"),
+                Claim(statement="Выдумка.", quote="этого фрагмента в тексте нет"),
+                Claim(statement="Маркировка обязательна.", quote="Маркировка контента становится обязательной"),
+            ],
+            SOURCE,
+        )
+        provider = FakeProvider(
+            [ClaimVerdict(index=0, entailed=True), ClaimVerdict(index=1, entailed=True)]
+        )
+
+        await check_entailment(claims, provider)
+
+        assert provider.calls == ["verify_claims/v1"]
+
+    @pytest.mark.asyncio
+    async def test_verifier_payload_does_not_include_full_raw_text(self) -> None:
+        class CapturingProvider(FakeProvider):
+            def __init__(self) -> None:
+                super().__init__([ClaimVerdict(index=0, entailed=True)])
+                self.user_payload = ""
+
+            async def complete_json(self, prompt_id, system, user, schema):
+                self.user_payload = user
+                return await super().complete_json(prompt_id, system, user, schema)
+
+        claims = check_quotes(
+            [Claim(statement="Закон принят.", quote="Государственная Дума приняла закон")],
+            SOURCE,
+        )
+        provider = CapturingProvider()
+
+        await check_entailment(claims, provider)
+
+        payload = json.loads(provider.user_payload)
+        assert payload == [
+            {
+                "index": 0,
+                "statement": "Закон принят.",
+                "quote": "Государственная Дума приняла закон",
+            }
+        ]
+        assert "Маркировка контента становится обязательной" not in provider.user_payload
+
+    @pytest.mark.asyncio
     async def test_failed_quotes_are_not_sent_to_verification(self) -> None:
         claims = check_quotes(
             [Claim(statement="Выдумка.", quote="этого в тексте нет совершенно точно")], SOURCE
@@ -166,6 +241,21 @@ class TestStageTwoEntailment:
         checked = await check_entailment(claims, FakeProvider(fail=True))
         assert checked[0]["entailed"] is False
         assert checked[0]["reject_reason"] == RejectReason.VERIFICATION_UNAVAILABLE
+
+    @pytest.mark.asyncio
+    async def test_missing_verdict_rejects_claim_as_verification_unavailable(self) -> None:
+        claims = check_quotes(
+            [
+                Claim(statement="Закон принят.", quote="Государственная Дума приняла закон"),
+                Claim(statement="Маркировка обязательна.", quote="Маркировка контента становится обязательной"),
+            ],
+            SOURCE,
+        )
+        checked = await check_entailment(claims, FakeProvider([ClaimVerdict(index=0, entailed=True)]))
+
+        assert checked[0]["entailed"] is True
+        assert checked[1]["entailed"] is False
+        assert checked[1]["reject_reason"] == RejectReason.VERIFICATION_UNAVAILABLE
 
 
 class TestSummaryAssembly:

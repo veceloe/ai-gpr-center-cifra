@@ -87,22 +87,22 @@ class NormalizedText:
 
 def normalize_with_map(raw: str) -> NormalizedText:
     """Схлопывает пробелы и унифицирует типографику, сохраняя карту смещений."""
-    folded = unicodedata.normalize("NFKC", raw).translate(_TRANSLATE)
     chars: list[str] = []
     offsets: list[int] = []
     previous_was_space = False
 
-    for index, char in enumerate(folded):
-        if char.isspace():
-            if previous_was_space or not chars:
+    for index, raw_char in enumerate(raw):
+        for char in unicodedata.normalize("NFKC", raw_char).translate(_TRANSLATE):
+            if char.isspace():
+                if previous_was_space or not chars:
+                    continue
+                chars.append(" ")
+                offsets.append(index)
+                previous_was_space = True
                 continue
-            chars.append(" ")
+            chars.append(char.lower())
             offsets.append(index)
-            previous_was_space = True
-            continue
-        chars.append(char.lower())
-        offsets.append(index)
-        previous_was_space = False
+            previous_was_space = False
 
     while chars and chars[-1] == " ":
         chars.pop()
