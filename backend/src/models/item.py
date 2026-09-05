@@ -71,6 +71,7 @@ class Item(Base):
 
     story_id: Mapped[int | None] = mapped_column(ForeignKey("stories.id"), nullable=True, index=True)
     act_id: Mapped[int | None] = mapped_column(ForeignKey("acts.id"), nullable=True, index=True)
+    act_identifier: Mapped[str | None] = mapped_column(String(512), nullable=True, index=True)
 
     # Рабочая пометка пользователя, доступна в поиске (FR-044).
     user_note: Mapped[str | None] = mapped_column(Text, nullable=True)

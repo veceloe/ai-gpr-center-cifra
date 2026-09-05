@@ -31,6 +31,9 @@ from src.llm.prompts import (
 from src.llm.provider import LLMError, LLMProvider
 from src.models import (
     Act,
+    ActEvent,
+    ActEventType,
+    ActStage,
     Assessment,
     AssessmentScheme,
     Author,
@@ -162,7 +165,7 @@ async def process_item(
             )
             item.topic = classified.topic
             result.act_identifier = classified.act_identifier
-            await _link_existing_act(session, item, classified.act_identifier)
+            await _link_or_create_act(session, item, classified.act_identifier)
             result.classified = True
         except LLMError as exc:
             result.error = f"классификация: {exc}"
@@ -203,19 +206,41 @@ async def process_item(
     return result
 
 
-async def _link_existing_act(
+async def _link_or_create_act(
     session: AsyncSession,
     item: Item,
     act_identifier: str | None,
 ) -> None:
-    """Связывает НПА-материал с уже созданным досье; создание досье остаётся T059."""
-    if item.item_type != ItemType.ACT or not act_identifier or item.act_id is not None:
+    """Связывает НПА-материал с досье; полный lifecycle стадий остаётся T061-T065."""
+    if item.item_type != ItemType.ACT:
+        return
+    item.act_identifier = act_identifier
+    if not act_identifier or item.act_id is not None:
         return
     act = (
         await session.execute(select(Act).where(Act.act_identifier == act_identifier))
     ).scalar_one_or_none()
     if act is None:
-        return
+        act = Act(
+            act_identifier=act_identifier,
+            doc_type="НПА",
+            stage=ActStage.ANNOUNCEMENT,
+            source_url=item.url,
+            essence=item.current_summary.text if item.current_summary else item.title,
+            is_tracked=False,
+        )
+        session.add(act)
+        await session.flush()
+        session.add(
+            ActEvent(
+                act_id=act.id,
+                event_type=ActEventType.OTHER,
+                occurred_at=item.published_at.date(),
+                description="Досье создано из входящего материала.",
+                source_item_id=item.id,
+                document_url=item.url,
+            )
+        )
     item.act_id = act.id
     item.act = act
 

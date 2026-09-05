@@ -24,6 +24,8 @@ from src.llm.contracts import (
 from src.llm.provider import LLMError
 from src.models import (
     Act,
+    ActEvent,
+    ActEventType,
     ActStage,
     Assessment,
     Author,
@@ -237,18 +239,38 @@ async def test_act_identifier_links_act_item_to_existing_act(
 
 
 @pytest.mark.asyncio
+async def test_act_identifier_creates_minimal_act_for_first_act_item(
+    session: AsyncSession, item: Item, profile: CompanyProfile
+) -> None:
+    provider = StubProvider()
+
+    result = await process_item(session, item, provider, profile)
+    await session.commit()
+    await session.refresh(item)
+
+    act = await session.scalar(select(Act).where(Act.act_identifier == "ФЗ № 243-ФЗ"))
+    assert act is not None
+    assert result.act_identifier == "ФЗ № 243-ФЗ"
+    assert item.act_identifier == "ФЗ № 243-ФЗ"
+    assert item.act_id == act.id
+    assert item.story_id is None
+    assert act.doc_type == "НПА"
+    assert act.stage == ActStage.ANNOUNCEMENT
+    assert act.source_url == item.url
+    assert act.is_tracked is False
+
+    event = await session.scalar(select(ActEvent).where(ActEvent.act_id == act.id))
+    assert event is not None
+    assert event.event_type == ActEventType.OTHER
+    assert event.source_item_id == item.id
+    assert event.document_url == item.url
+    assert "dedup_pair/v1" not in provider.calls
+
+
+@pytest.mark.asyncio
 async def test_two_act_items_with_same_identifier_link_to_same_act(
     session: AsyncSession, source, profile: CompanyProfile
 ) -> None:
-    source.item_type = ItemType.ACT
-    act = Act(
-        act_identifier="ФЗ № 243-ФЗ",
-        doc_type="Федеральный закон",
-        stage=ActStage.SUBMITTED,
-        source_url="https://duma.example/document/243",
-        essence="Поддержка технологий искусственного интеллекта.",
-    )
-    session.add(act)
     for index in range(2):
         session.add(
             Item(
@@ -270,10 +292,16 @@ async def test_two_act_items_with_same_identifier_link_to_same_act(
         await process_item(session, stored, provider, profile)
     await session.commit()
 
+    acts = list((await session.execute(select(Act))).scalars().all())
+    assert len(acts) == 1
+    act = acts[0]
     for stored in items:
         await session.refresh(stored)
         assert stored.act_id == act.id
         assert stored.story_id is None
+        assert stored.act_identifier == "ФЗ № 243-ФЗ"
+    events = list((await session.execute(select(ActEvent))).scalars().all())
+    assert len(events) == 1
     assert "dedup_pair/v1" not in provider.calls
 
 
@@ -289,6 +317,7 @@ async def test_missing_act_identifier_does_not_fail_pipeline(
 
     assert result.classified is True
     assert result.act_identifier is None
+    assert item.act_identifier is None
     assert item.act_id is None
     assert "score_npa/v1" in provider.calls
 

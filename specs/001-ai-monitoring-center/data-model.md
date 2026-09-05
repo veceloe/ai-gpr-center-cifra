@@ -53,6 +53,7 @@ Digest *──* Item             (через DigestItem)
 | is_hidden | bool | скрыт пользователем, обратимо (FR-045) |
 | story_id | FK Story? | кластер дублей |
 | act_id | FK Act? | связь с досье (FR-036) |
+| act_identifier | str? | идентификатор НПА из `classify/v1`, используется для связи с досье |
 | user_note | text? | рабочая пометка (FR-044) |
 | tags | str[] | |
 

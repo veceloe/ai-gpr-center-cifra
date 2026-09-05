@@ -89,6 +89,14 @@ async def apply_compat_migrations(conn) -> None:
                 """
             )
         )
+    item_columns = {
+        row[1] for row in (await conn.execute(text("PRAGMA table_info(items)"))).all()
+    }
+    if "act_identifier" not in item_columns:
+        await conn.execute(text("ALTER TABLE items ADD COLUMN act_identifier VARCHAR(512)"))
+    await conn.execute(
+        text("CREATE INDEX IF NOT EXISTS ix_items_act_identifier ON items (act_identifier)")
+    )
     # Материалы, собранные до появления Source.item_type, копируют тип источника.
     await conn.execute(
         text(

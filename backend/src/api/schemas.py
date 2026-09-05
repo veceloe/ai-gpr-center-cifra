@@ -10,8 +10,8 @@ from datetime import date, datetime
 
 from pydantic import BaseModel, Field
 
+from src.models import Act, ActEvent, Item, Revision, Source, Story, Summary
 from src.models import Assessment as AssessmentModel
-from src.models import Item, Revision, Source, Story, Summary
 
 
 class HealthResponse(BaseModel):
@@ -374,6 +374,44 @@ def story_out(story: Story) -> StoryOut:
             )
             for member in story.items
         ],
+    )
+
+
+def act_event_out(event: ActEvent) -> ActEventOut:
+    return ActEventOut(
+        event_type=str(event.event_type),
+        occurred_at=event.occurred_at,
+        description=event.description,
+        version_label=event.version_label,
+        document_url=event.document_url,
+        source_item_id=event.source_item_id,
+    )
+
+
+def act_card(act: Act) -> ActCardOut:
+    assessment = act.current_assessment
+    return ActCardOut(
+        id=act.id,
+        act_identifier=act.act_identifier,
+        doc_type=act.doc_type,
+        stage=str(act.stage),
+        index_value=assessment.index_value if assessment else None,
+        final_category=assessment.final_category if assessment else None,
+        is_tracked=act.is_tracked,
+        is_archived=act.is_archived,
+        effective_from=act.effective_from,
+    )
+
+
+def act_detail(act: Act) -> ActDetailOut:
+    card = act_card(act)
+    return ActDetailOut(
+        **card.model_dump(),
+        essence=act.essence,
+        source_url=act.source_url,
+        timeline=[act_event_out(event) for event in act.timeline],
+        assessment_history=[assessment_out(assessment) for assessment in act.assessments],
+        linked_items=[item_card(item) for item in act.linked_items],
     )
 
 
