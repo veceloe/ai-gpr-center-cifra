@@ -61,17 +61,16 @@ class LLMProvider(Protocol):
 
 ---
 
-## LLM-02 · classify — тип и тематика
+## LLM-02 · classify — тематика и идентификатор НПА
 
-**Вход:** заголовок, саммари, URL источника.
+**Вход:** заголовок, саммари, URL источника, тип материала из `Item.item_type`.
 
 **Выход:**
 
 ```json
 {
   "act_identifier": "Законопроект № 1215252-8",
-  "topic": "regulatory",
-  "confidence": "high"
+  "topic": "regulatory"
 }
 ```
 

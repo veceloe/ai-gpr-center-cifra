@@ -265,9 +265,9 @@ def test_cache_key_is_stable_normalized_and_partitioned() -> None:
 def test_cache_entries_are_not_shared_across_prompt_model_or_input(tmp_path) -> None:
     cache = ResponseCache(tmp_path / "llm.db")
     original = cache_key("classify/v1", "model-a", "input")
-    cache.put(original, "classify/v1", "model-a", {"item_type": "news", "topic": "trends"})
+    cache.put(original, "classify/v1", "model-a", {"topic": "trends", "act_identifier": None})
 
-    assert cache.get(original) == {"item_type": "news", "topic": "trends"}
+    assert cache.get(original) == {"topic": "trends", "act_identifier": None}
     assert cache.get(cache_key("classify/v2", "model-a", "input")) is None
     assert cache.get(cache_key("classify/v1", "model-b", "input")) is None
     assert cache.get(cache_key("classify/v1", "model-a", "other input")) is None
@@ -300,6 +300,17 @@ def test_score_contract_never_accepts_model_computed_index_or_category() -> None
     assert result.scores == {"К1": 1}
     assert "index_value" not in ScoreResultRaw.model_fields
     assert "category" not in ScoreResultRaw.model_fields
+
+
+def test_classify_contract_has_no_item_type_output() -> None:
+    result = ClassifyResult.model_validate(
+        {"topic": "regulatory", "act_identifier": "ФЗ № 1", "item_type": "news"}
+    )
+
+    assert result.topic is Topic.REGULATORY
+    assert result.act_identifier == "ФЗ № 1"
+    assert "item_type" not in ClassifyResult.model_fields
+    assert not hasattr(result, "item_type")
 
 
 def test_prompt_ids_cover_current_llm_contract() -> None:

@@ -1,8 +1,9 @@
 """Пайплайн обработки материала: саммари → заземление → классификация → оценка → кластер.
 
-Порядок неслучаен. Классификация опирается на саммари, оценка — на классификацию
-(от неё зависит схема критериев: К1-К6 для НПА, Н1-Н4 для новости). Заземление
-идёт сразу после саммари: незаземлённые утверждения не должны дойти до оценки.
+Порядок неслучаен. Классификация опирается на саммари и определяет только тему
+и идентификатор НПА; схема оценки выбирается по Item.item_type, заданному
+источником/backend flow. Заземление идёт сразу после саммари: незаземлённые
+утверждения не должны дойти до оценки.
 
 Правки пользователя не перезаписываются (FR-043, инвариант 6): поле, у которого
 есть запись в журнале с author != ai, пропускается.
@@ -60,6 +61,7 @@ class ProcessResult:
     clustered: bool = False
     skipped_fields: list[str] = None  # type: ignore[assignment]
     grounding: dict[str, int] = None  # type: ignore[assignment]
+    act_identifier: str | None = None
     error: str | None = None
     duration_seconds: float = 0.0
 
@@ -158,6 +160,7 @@ async def process_item(
                 ClassifyResult,
             )
             item.topic = classified.topic
+            result.act_identifier = classified.act_identifier
             result.classified = True
         except LLMError as exc:
             result.error = f"классификация: {exc}"

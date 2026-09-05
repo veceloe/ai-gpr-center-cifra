@@ -7,8 +7,10 @@
 from __future__ import annotations
 
 import pytest
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.collectors.base import CollectedItem, _upsert_item
 from src.llm.contracts import (
     ClaimVerdict,
     ClassifyResult,
@@ -21,6 +23,15 @@ from src.llm.provider import LLMError
 from src.models import Assessment, Author, CompanyProfile, Item, ItemType, Revision, Topic
 from src.pipeline.runner import process_item
 from src.scoring import get_scoring_config
+
+
+def item_text() -> str:
+    return (
+        "Государственная Дума приняла закон о поддержке технологий искусственного "
+        "интеллекта. Документ вводит режим для больших фундаментальных моделей "
+        "с числом параметров не менее одного миллиарда. Маркировка контента "
+        "становится обязательной с 1 марта 2027 года."
+    )
 
 
 class StubProvider:
@@ -80,6 +91,12 @@ class StubProvider:
                 rationales={code: f"обоснование {code}" for code in ("К1", "К2", "К3", "К4", "К5", "К6")},
                 escalation_candidates=[],
             )
+        if prompt_id.startswith("score_news"):
+            return ScoreResultRaw(
+                scores={"Н1": 3, "Н2": 3, "Н3": 1, "Н4": 1},
+                rationales={code: f"обоснование {code}" for code in ("Н1", "Н2", "Н3", "Н4")},
+                escalation_candidates=[],
+            )
         raise AssertionError(f"неожиданный промпт {prompt_id}")
 
 
@@ -109,8 +126,77 @@ async def test_full_pipeline_produces_grounded_and_scored_card(
     assert assessment.author == Author.AI
     assert item.item_type == ItemType.ACT
     assert "Тип материала (задан источником): act" in dict(provider.users)["classify/v1"]
+    assert result.act_identifier == "ФЗ № 243-ФЗ"
     assert item.is_relevant is True
     assert item.processed_at is not None
+
+
+@pytest.mark.asyncio
+async def test_collected_act_item_type_selects_npa_scoring(
+    session: AsyncSession, source, profile: CompanyProfile
+) -> None:
+    source.item_type = ItemType.ACT
+    candidate = CollectedItem(
+        url="https://duma.example/document/act",
+        title="Проект федерального закона",
+        raw_text=item_text(),
+    )
+    assert await _upsert_item(session, source, candidate) == "created"
+    stored = await session.scalar(select(Item).where(Item.url == candidate.url))
+    assert stored is not None
+
+    provider = StubProvider()
+    await process_item(session, stored, provider, profile)
+
+    assert stored.item_type == ItemType.ACT
+    assert "score_npa/v1" in provider.calls
+    assert "score_news/v1" not in provider.calls
+
+
+@pytest.mark.asyncio
+async def test_collected_news_item_type_selects_news_scoring(
+    session: AsyncSession, source, profile: CompanyProfile
+) -> None:
+    source.item_type = ItemType.NEWS
+    candidate = CollectedItem(
+        url="https://media.example/news/1",
+        title="Отраслевая новость",
+        raw_text=item_text(),
+    )
+    assert await _upsert_item(session, source, candidate) == "created"
+    stored = await session.scalar(select(Item).where(Item.url == candidate.url))
+    assert stored is not None
+
+    provider = StubProvider()
+    await process_item(session, stored, provider, profile)
+
+    assert stored.item_type == ItemType.NEWS
+    assert "score_news/v1" in provider.calls
+    assert "score_npa/v1" not in provider.calls
+
+
+@pytest.mark.asyncio
+async def test_classify_response_cannot_retype_act_item(
+    session: AsyncSession, item: Item, profile: CompanyProfile
+) -> None:
+    provider = StubProvider(
+        **{
+            "classify/v1": ClassifyResult.model_validate(
+                {
+                    "topic": "regulatory",
+                    "act_identifier": "Законопроект № 1215252-8",
+                    "item_type": "news",
+                }
+            )
+        }
+    )
+
+    result = await process_item(session, item, provider, profile)
+
+    assert item.item_type == ItemType.ACT
+    assert result.act_identifier == "Законопроект № 1215252-8"
+    assert "score_npa/v1" in provider.calls
+    assert "score_news/v1" not in provider.calls
 
 
 @pytest.mark.asyncio
