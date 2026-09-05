@@ -30,6 +30,7 @@ from src.llm.prompts import (
 )
 from src.llm.provider import LLMError, LLMProvider
 from src.models import (
+    Act,
     Assessment,
     AssessmentScheme,
     Author,
@@ -161,6 +162,7 @@ async def process_item(
             )
             item.topic = classified.topic
             result.act_identifier = classified.act_identifier
+            await _link_existing_act(session, item, classified.act_identifier)
             result.classified = True
         except LLMError as exc:
             result.error = f"классификация: {exc}"
@@ -180,8 +182,9 @@ async def process_item(
     # --- 4. Кластеризация дублей ---
     # Только после саммари: гейт по сущностям и факт из карточки уже есть.
     try:
-        story = await cluster_item(session, item, provider)
-        result.clustered = story is not None and story.item_count > 1
+        if item.item_type == ItemType.NEWS:
+            story = await cluster_item(session, item, provider)
+            result.clustered = story is not None and story.item_count > 1
     except Exception:
         logger.exception("Item %s: кластеризация провалилась", item.id)
 
@@ -198,6 +201,23 @@ async def process_item(
         result.scored,
     )
     return result
+
+
+async def _link_existing_act(
+    session: AsyncSession,
+    item: Item,
+    act_identifier: str | None,
+) -> None:
+    """Связывает НПА-материал с уже созданным досье; создание досье остаётся T059."""
+    if item.item_type != ItemType.ACT or not act_identifier or item.act_id is not None:
+        return
+    act = (
+        await session.execute(select(Act).where(Act.act_identifier == act_identifier))
+    ).scalar_one_or_none()
+    if act is None:
+        return
+    item.act_id = act.id
+    item.act = act
 
 
 async def _score_item(
@@ -365,6 +385,7 @@ async def process_unprocessed(
                     select(Item)
                     .where(
                         Item.processed_at.isnot(None),
+                        Item.item_type == ItemType.NEWS,
                         Item.story_id.is_(None),
                         Item.is_hidden.is_(False),
                     )

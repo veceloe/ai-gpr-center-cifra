@@ -214,6 +214,27 @@ async def test_split_prevents_remerge(session: AsyncSession, source: Source) -> 
 
 
 @pytest.mark.asyncio
+async def test_act_items_do_not_enter_story_clustering(
+    session: AsyncSession, source: Source
+) -> None:
+    first, second = await _pair(session, source, "cas")
+    first.item_type = ItemType.ACT
+    second.item_type = ItemType.ACT
+    await session.commit()
+
+    provider = DedupStub()
+    story = await cluster_item(session, first, provider)
+    await session.commit()
+    await session.refresh(first)
+    await session.refresh(second)
+
+    assert story is None
+    assert first.story_id is None
+    assert second.story_id is None
+    assert provider.calls == []
+
+
+@pytest.mark.asyncio
 async def test_process_backfills_clustering_for_summarized_items(
     session: AsyncSession, source: Source, profile
 ) -> None:

@@ -6,6 +6,8 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
+
 import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -20,7 +22,17 @@ from src.llm.contracts import (
     VerifyClaimsResult,
 )
 from src.llm.provider import LLMError
-from src.models import Assessment, Author, CompanyProfile, Item, ItemType, Revision, Topic
+from src.models import (
+    Act,
+    ActStage,
+    Assessment,
+    Author,
+    CompanyProfile,
+    Item,
+    ItemType,
+    Revision,
+    Topic,
+)
 from src.pipeline.runner import process_item
 from src.scoring import get_scoring_config
 
@@ -197,6 +209,88 @@ async def test_classify_response_cannot_retype_act_item(
     assert result.act_identifier == "Законопроект № 1215252-8"
     assert "score_npa/v1" in provider.calls
     assert "score_news/v1" not in provider.calls
+
+
+@pytest.mark.asyncio
+async def test_act_identifier_links_act_item_to_existing_act(
+    session: AsyncSession, item: Item, profile: CompanyProfile
+) -> None:
+    act = Act(
+        act_identifier="ФЗ № 243-ФЗ",
+        doc_type="Федеральный закон",
+        stage=ActStage.SUBMITTED,
+        source_url="https://duma.example/document/243",
+        essence="Поддержка технологий искусственного интеллекта.",
+    )
+    session.add(act)
+    await session.commit()
+
+    provider = StubProvider()
+    result = await process_item(session, item, provider, profile)
+    await session.commit()
+    await session.refresh(item)
+
+    assert result.act_identifier == "ФЗ № 243-ФЗ"
+    assert item.act_id == act.id
+    assert item.story_id is None
+    assert "dedup_pair/v1" not in provider.calls
+
+
+@pytest.mark.asyncio
+async def test_two_act_items_with_same_identifier_link_to_same_act(
+    session: AsyncSession, source, profile: CompanyProfile
+) -> None:
+    source.item_type = ItemType.ACT
+    act = Act(
+        act_identifier="ФЗ № 243-ФЗ",
+        doc_type="Федеральный закон",
+        stage=ActStage.SUBMITTED,
+        source_url="https://duma.example/document/243",
+        essence="Поддержка технологий искусственного интеллекта.",
+    )
+    session.add(act)
+    for index in range(2):
+        session.add(
+            Item(
+                source_id=source.id,
+                url=f"https://duma.example/document/243/{index}",
+                title=f"Карточка НПА {index}",
+                raw_text=item_text(),
+                content_hash=f"act-{index}",
+                item_type=ItemType.ACT,
+                published_at=datetime(2026, 9, 1, tzinfo=UTC),
+                tags=[],
+            )
+        )
+    await session.commit()
+
+    items = list((await session.execute(select(Item).order_by(Item.id))).scalars().all())
+    provider = StubProvider()
+    for stored in items:
+        await process_item(session, stored, provider, profile)
+    await session.commit()
+
+    for stored in items:
+        await session.refresh(stored)
+        assert stored.act_id == act.id
+        assert stored.story_id is None
+    assert "dedup_pair/v1" not in provider.calls
+
+
+@pytest.mark.asyncio
+async def test_missing_act_identifier_does_not_fail_pipeline(
+    session: AsyncSession, item: Item, profile: CompanyProfile
+) -> None:
+    provider = StubProvider(
+        **{"classify/v1": ClassifyResult(topic=Topic.REGULATORY, act_identifier=None)}
+    )
+
+    result = await process_item(session, item, provider, profile)
+
+    assert result.classified is True
+    assert result.act_identifier is None
+    assert item.act_id is None
+    assert "score_npa/v1" in provider.calls
 
 
 @pytest.mark.asyncio

@@ -24,7 +24,7 @@ from sqlalchemy.orm import selectinload
 from src.llm.contracts import DedupPairResult
 from src.llm.prompts import DEDUP_PAIR, dedup_user_message
 from src.llm.provider import LLMError, LLMProvider
-from src.models import Author, Item, Revision, Story
+from src.models import Author, Item, ItemType, Revision, Story
 from src.pipeline.embed import cosine, embed, fingerprint_text
 
 logger = logging.getLogger(__name__)
@@ -228,6 +228,8 @@ async def cluster_item(
     provider: LLMProvider,
 ) -> Story | None:
     """Пытается присоединить материал к существующему событию или создать новое."""
+    if item.item_type != ItemType.NEWS:
+        return None
     await session.refresh(item, ["summaries", "story", "source"])
     forbidden = await _split_pairs(session)
     candidates = _ranked_candidates(item, await _window_items(session, item), forbidden)
