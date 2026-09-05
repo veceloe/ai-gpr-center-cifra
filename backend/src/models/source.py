@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 from sqlalchemy import Boolean, DateTime, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from src.models._base import Base
+from src.models._base import Base, ItemType
 
 if TYPE_CHECKING:
     from src.models.item import Item
@@ -36,6 +36,9 @@ class Source(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     type: Mapped[SourceType] = mapped_column(String(16), index=True)
     category: Mapped[SourceCategory] = mapped_column(String(16), index=True)
+    # Тип определяется один раз при добавлении источника и копируется в Item.
+    # LLM не должен менять схему оценки по содержимому отдельной публикации (FR-013).
+    item_type: Mapped[ItemType] = mapped_column(String(16), default=ItemType.NEWS, index=True)
     url: Mapped[str] = mapped_column(String(1024), unique=True)
     title: Mapped[str] = mapped_column(String(512))
 

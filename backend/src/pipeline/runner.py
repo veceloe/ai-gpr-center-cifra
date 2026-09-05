@@ -1,4 +1,4 @@
-"""Пайплайн обработки материала: саммари → заземление → классификация → оценка.
+"""Пайплайн обработки материала: саммари → заземление → классификация → оценка → кластер.
 
 Порядок неслучаен. Классификация опирается на саммари, оценка — на классификацию
 (от неё зависит схема критериев: К1-К6 для НПА, Н1-Н4 для новости). Заземление
@@ -38,6 +38,7 @@ from src.models import (
     Revision,
     Summary,
 )
+from src.pipeline.dedup import cluster_item
 from src.pipeline.grounding import build_summary_text, check_entailment, check_quotes, grounding_stats
 from src.scoring import ScoringError, get_scoring_config
 from src.scoring import score as compute_score
@@ -56,6 +57,7 @@ class ProcessResult:
     summarized: bool = False
     classified: bool = False
     scored: bool = False
+    clustered: bool = False
     skipped_fields: list[str] = None  # type: ignore[assignment]
     grounding: dict[str, int] = None  # type: ignore[assignment]
     error: str | None = None
@@ -102,7 +104,7 @@ async def process_item(
 
     # Связи грузим явно: материал мог прийти любым путём, а ленивая подгрузка
     # в асинхронном контексте падает с MissingGreenlet.
-    await session.refresh(item, ["source", "summaries", "assessments"])
+    await session.refresh(item, ["source", "summaries", "assessments", "story"])
 
     edited_item = await user_edited_fields(session, "item", item.id)
     edited_summary = await user_edited_fields(session, "summary", item.id)
@@ -140,17 +142,21 @@ async def process_item(
     summary_text = item.current_summary.text if item.current_summary else item.title
 
     # --- 2. Классификация ---
-    if "topic" in edited_item or "item_type" in edited_item:
+    if "topic" in edited_item:
         result.skipped_fields.append("classification")
     else:
         try:
             classified = await provider.complete_json(
                 CLASSIFY.id,
                 CLASSIFY.system,
-                classify_user_message(item.title, summary_text or item.raw_text, item.url),
+                classify_user_message(
+                    item.title,
+                    summary_text or item.raw_text,
+                    item.url,
+                    str(item.item_type),
+                ),
                 ClassifyResult,
             )
-            item.item_type = classified.item_type
             item.topic = classified.topic
             result.classified = True
         except LLMError as exc:
@@ -167,6 +173,14 @@ async def process_item(
         result.scored = scored
         if not scored:
             item.assessment_failed = True
+
+    # --- 4. Кластеризация дублей ---
+    # Только после саммари: гейт по сущностям и факт из карточки уже есть.
+    try:
+        story = await cluster_item(session, item, provider)
+        result.clustered = story is not None and story.item_count > 1
+    except Exception:
+        logger.exception("Item %s: кластеризация провалилась", item.id)
 
     item.processed_at = datetime.now(UTC)
     await session.flush()
@@ -312,7 +326,7 @@ async def _replace_assessment(
 async def process_unprocessed(
     session: AsyncSession, provider: LLMProvider, limit: int = 20
 ) -> list[ProcessResult]:
-    """Обрабатывает материалы, у которых ещё нет оценки."""
+    """Обрабатывает новые материалы и догоняет кластеризацию уже размеченных."""
     profile = await get_active_profile(session)
     stmt = (
         select(Item)
@@ -323,6 +337,7 @@ async def process_unprocessed(
             selectinload(Item.source),
             selectinload(Item.summaries),
             selectinload(Item.assessments),
+            selectinload(Item.story),
         )
     )
     items = list((await session.execute(stmt)).scalars().all())
@@ -336,4 +351,44 @@ async def process_unprocessed(
             await session.rollback()
             logger.exception("Item %s: обработка провалилась", item.id)
             results.append(ProcessResult(item_id=item.id, error=str(exc)[:300]))
+
+    # Даже при полной очереди обработки оставляем слоты на кластеризацию
+    # уже размеченных карточек — иначе US6 на живой базе не стартует.
+    leftover = max(limit - len(items), min(5, limit))
+    if leftover:
+        pending = list(
+            (
+                await session.execute(
+                    select(Item)
+                    .where(
+                        Item.processed_at.isnot(None),
+                        Item.story_id.is_(None),
+                        Item.is_hidden.is_(False),
+                    )
+                    .order_by(Item.published_at.desc())
+                    .limit(leftover)
+                    .options(
+                        selectinload(Item.source),
+                        selectinload(Item.summaries),
+                        selectinload(Item.story),
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        for item in pending:
+            try:
+                story = await cluster_item(session, item, provider)
+                await session.commit()
+                results.append(
+                    ProcessResult(
+                        item_id=item.id,
+                        clustered=story is not None and story.item_count > 1,
+                    )
+                )
+            except Exception as exc:
+                await session.rollback()
+                logger.exception("Item %s: догоняющая кластеризация провалилась", item.id)
+                results.append(ProcessResult(item_id=item.id, error=str(exc)[:300]))
     return results

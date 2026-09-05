@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.api.schemas import SourceCreate, SourceOut, SourceUpdate
 from src.config import get_settings
 from src.db import get_db, get_session_factory
-from src.models import Item, Source, SourceCategory, SourceType
+from src.models import Item, ItemType, Source, SourceCategory, SourceType
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["sources"])
@@ -30,12 +30,19 @@ DEFAULT_CATEGORY = {
     SourceType.MANUAL: SourceCategory.MEDIA,
 }
 
+DEFAULT_ITEM_TYPE = {
+    SourceCategory.MEDIA: ItemType.NEWS,
+    SourceCategory.REGULATOR: ItemType.ACT,
+    SourceCategory.TELEGRAM: ItemType.NEWS,
+}
+
 
 def _out(source: Source, item_count: int = 0) -> SourceOut:
     return SourceOut(
         id=source.id,
         type=str(source.type),
         category=str(source.category),
+        item_type=str(source.item_type),
         url=source.url,
         title=source.title,
         is_active=source.is_active,
@@ -72,7 +79,15 @@ async def create_source(
     if (await db.execute(select(Source).where(Source.url == url))).scalar_one_or_none():
         raise HTTPException(status_code=409, detail="Источник с таким URL уже есть")
 
-    category = SourceCategory(payload.category) if payload.category else DEFAULT_CATEGORY[source_type]
+    try:
+        category = (
+            SourceCategory(payload.category) if payload.category else DEFAULT_CATEGORY[source_type]
+        )
+        item_type = (
+            ItemType(payload.item_type) if payload.item_type else DEFAULT_ITEM_TYPE[category]
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     settings = get_settings()
     interval = (
         settings.poll_interval_regulator_min
@@ -83,6 +98,7 @@ async def create_source(
     source = Source(
         type=source_type,
         category=category,
+        item_type=item_type,
         url=url,
         title=(payload.title or url).strip(),
         poll_interval_min=interval,

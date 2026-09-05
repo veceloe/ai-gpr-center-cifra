@@ -13,7 +13,6 @@
 ```bash
 cd backend && python -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt
 python -m src.cli init-db          # схема + сиды: источники, профиль компании, конфиг оценки
-python -m src.cli seed-sources     # 5 источников из docs/sources.md
 uvicorn src.api.main:app --reload  # http://localhost:8000
 ```
 

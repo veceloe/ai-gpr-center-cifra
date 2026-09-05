@@ -64,13 +64,7 @@ VERIFY_CLAIMS = Prompt(
 
 CLASSIFY = Prompt(
     id="classify/v1",
-    system="""Ты классифицируешь материал отраслевого мониторинга.
-
-item_type:
-- "act" — нормативно-правовой акт, его проект, законопроект, постановление, приказ,
-  указ, концепция, поручение, а также анонс таких документов.
-- "news" — всё остальное: рыночные события, судебная практика, корпоративные новости,
-  аналитика, заявления.
+    system="""Ты определяешь тему материала отраслевого мониторинга.
 
 topic — одно значение:
 - "regulatory" — регулирование, законодательство, требования органов власти
@@ -78,12 +72,13 @@ topic — одно значение:
 - "competitors" — действия и позиции конкурентов
 - "trends" — отраслевые тренды, рыночные данные, технологии
 
-act_identifier заполняй ТОЛЬКО для item_type = "act": номер и вид документа так, как он
+Тип материала уже задан источником во входе и не подлежит переопределению.
+act_identifier заполняй ТОЛЬКО для типа "act": номер и вид документа так, как он
 назван в тексте, например "Законопроект № 1215252-8" или "ФЗ № 243-ФЗ". Если номера
 в тексте нет — верни null.
 
 Отвечай ТОЛЬКО валидным JSON вида:
-{"item_type": "act", "topic": "regulatory", "act_identifier": "..."}""",
+{"topic": "regulatory", "act_identifier": "..."}""",
 )
 
 DEDUP_PAIR = Prompt(
@@ -181,8 +176,11 @@ def verify_claims_user_message(pairs: list[tuple[str, str]]) -> str:
     return json.dumps(payload, ensure_ascii=False, indent=1)
 
 
-def classify_user_message(title: str, text: str, url: str) -> str:
-    return f"URL: {url}\nЗаголовок: {title}\n\nТекст:\n{text[:4000]}"
+def classify_user_message(title: str, text: str, url: str, item_type: str) -> str:
+    return (
+        f"Тип материала (задан источником): {item_type}\n"
+        f"URL: {url}\nЗаголовок: {title}\n\nТекст:\n{text[:4000]}"
+    )
 
 
 def score_user_message(title: str, summary: str, text: str, published_at: str) -> str:

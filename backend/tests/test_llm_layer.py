@@ -20,7 +20,7 @@ from src.llm.contracts import (
 )
 from src.llm.prompts import CLASSIFY, DEDUP_PAIR, SUMMARIZE, VERIFY_CLAIMS, build_score_prompt
 from src.llm.provider import FallbackProvider, LLMError, OpenAICompatibleProvider
-from src.models import AssessmentScheme, ItemType, Topic
+from src.models import AssessmentScheme, Topic
 from src.scoring import get_scoring_config
 
 
@@ -132,7 +132,7 @@ async def test_primary_provider_returns_structured_pydantic_response(monkeypatch
 
 @pytest.mark.asyncio
 async def test_invalid_structured_response_is_rejected(monkeypatch: pytest.MonkeyPatch) -> None:
-    install_fake_http(monkeypatch, [chat_response('{"item_type":"unknown","topic":"regulatory"}')])
+    install_fake_http(monkeypatch, [chat_response('{"topic":"unknown"}')])
 
     with pytest.raises(LLMError, match="не прошёл валидацию"):
         await provider(max_retries=0).complete_json(
@@ -145,8 +145,8 @@ async def test_provider_retries_once_after_invalid_response(monkeypatch: pytest.
     calls = install_fake_http(
         monkeypatch,
         [
-            chat_response('{"item_type":"unknown","topic":"regulatory"}'),
-            chat_response('{"item_type":"act","topic":"regulatory","act_identifier":"  ФЗ № 1  "}'),
+            chat_response('{"topic":"unknown"}'),
+            chat_response('{"topic":"regulatory","act_identifier":"  ФЗ № 1  "}'),
         ],
     )
 
@@ -154,9 +154,7 @@ async def test_provider_retries_once_after_invalid_response(monkeypatch: pytest.
         CLASSIFY.id, CLASSIFY.system, "input", ClassifyResult
     )
 
-    assert result == ClassifyResult(
-        item_type=ItemType.ACT, topic=Topic.REGULATORY, act_identifier="ФЗ № 1"
-    )
+    assert result == ClassifyResult(topic=Topic.REGULATORY, act_identifier="ФЗ № 1")
     assert len(calls) == 2
     retry_messages = calls[1]["json"]["messages"]
     assert retry_messages[-1]["role"] == "user"
@@ -168,8 +166,8 @@ async def test_provider_respects_retry_limit(monkeypatch: pytest.MonkeyPatch) ->
     calls = install_fake_http(
         monkeypatch,
         [
-            chat_response('{"item_type":"unknown","topic":"regulatory"}'),
-            chat_response('{"item_type":"still-bad","topic":"regulatory"}'),
+            chat_response('{"topic":"unknown"}'),
+            chat_response('{"topic":"still-bad"}'),
         ],
     )
 
@@ -183,7 +181,7 @@ async def test_provider_respects_retry_limit(monkeypatch: pytest.MonkeyPatch) ->
 
 @pytest.mark.asyncio
 async def test_fallback_provider_uses_reserve_after_primary_error() -> None:
-    fallback_result = ClassifyResult(item_type=ItemType.NEWS, topic=Topic.TRENDS)
+    fallback_result = ClassifyResult(topic=Topic.TRENDS)
     primary = FakeProvider(error=httpx.ReadTimeout("timeout"))
     fallback = FakeProvider(result=fallback_result)
 
@@ -224,14 +222,14 @@ async def test_timeout_from_primary_provider_is_propagated(monkeypatch: pytest.M
 async def test_cache_miss_calls_remote_provider(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
     calls = install_fake_http(
         monkeypatch,
-        [chat_response('{"item_type":"news","topic":"trends","act_identifier":null}')],
+        [chat_response('{"topic":"trends","act_identifier":null}')],
     )
 
     result = await provider(cache=ResponseCache(tmp_path / "llm.db"), max_retries=0).complete_json(
         CLASSIFY.id, CLASSIFY.system, "input", ClassifyResult
     )
 
-    assert result.item_type is ItemType.NEWS
+    assert result.topic is Topic.TRENDS
     assert len(calls) == 1
 
 
@@ -240,7 +238,7 @@ async def test_cache_hit_does_not_call_remote_provider(monkeypatch: pytest.Monke
     cache = ResponseCache(tmp_path / "llm.db")
     calls = install_fake_http(
         monkeypatch,
-        [chat_response('{"item_type":"news","topic":"trends","act_identifier":null}')],
+        [chat_response('{"topic":"trends","act_identifier":null}')],
     )
     llm = provider(cache=cache, max_retries=0)
 

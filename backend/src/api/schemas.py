@@ -11,7 +11,7 @@ from datetime import date, datetime
 from pydantic import BaseModel, Field
 
 from src.models import Assessment as AssessmentModel
-from src.models import Item, Source, Summary
+from src.models import Item, Revision, Source, Story, Summary
 
 
 class HealthResponse(BaseModel):
@@ -102,8 +102,41 @@ class ItemCardOut(BaseModel):
     assessment_failed: bool
     grounding: GroundingOut | None = None
     story_id: int | None = None
+    story: StoryRefOut | None = None
     act_id: int | None = None
     tags: list[str] = Field(default_factory=list)
+
+
+class StoryRefOut(BaseModel):
+    id: int
+    item_count: int
+
+
+class StoryMemberOut(BaseModel):
+    id: int
+    title: str
+    url: str
+    source: SourceRefOut
+    published_at: datetime
+
+
+class StoryOut(BaseModel):
+    id: int
+    canonical_title: str
+    fact_summary: str
+    first_seen_at: datetime
+    item_count: int
+    was_split_by_user: bool
+    items: list[StoryMemberOut] = Field(default_factory=list)
+
+
+class RevisionOut(BaseModel):
+    field: str
+    old_value: object | None = None
+    new_value: object | None = None
+    author: str
+    reason: str | None = None
+    created_at: datetime
 
 
 class ItemDetailOut(ItemCardOut):
@@ -111,6 +144,9 @@ class ItemDetailOut(ItemCardOut):
     claims: list[ClaimOut] = Field(default_factory=list)
     assessment: AssessmentOut | None = None
     user_note: str | None = None
+    revisions: list[RevisionOut] = Field(default_factory=list)
+    machine_summary: str | None = None
+    machine_assessment: AssessmentOut | None = None
 
 
 class FeedResponse(BaseModel):
@@ -122,6 +158,7 @@ class SourceOut(BaseModel):
     id: int
     type: str
     category: str
+    item_type: str
     url: str
     title: str
     is_active: bool
@@ -136,6 +173,7 @@ class SourceCreate(BaseModel):
     url: str
     title: str | None = None
     category: str | None = None
+    item_type: str | None = None
 
 
 class SourceUpdate(BaseModel):
@@ -303,14 +341,56 @@ def item_card(item: Item, *, is_edited: bool = False) -> ItemCardOut:
         assessment_failed=item.assessment_failed,
         grounding=_grounding(summary),
         story_id=item.story_id,
+        story=_story_ref(item),
         act_id=item.act_id,
         tags=item.tags or [],
     )
 
 
-def item_detail(item: Item, *, is_edited: bool = False) -> ItemDetailOut:
+def _story_ref(item: Item) -> StoryRefOut | None:
+    if item.story_id is None:
+        return None
+    count = item.story.item_count if item.story is not None else 0
+    if item.story is not None and not count:
+        count = len(item.story.items)
+    return StoryRefOut(id=item.story_id, item_count=count)
+
+
+def story_out(story: Story) -> StoryOut:
+    return StoryOut(
+        id=story.id,
+        canonical_title=story.canonical_title,
+        fact_summary=story.fact_summary,
+        first_seen_at=story.first_seen_at,
+        item_count=story.item_count or len(story.items),
+        was_split_by_user=story.was_split_by_user,
+        items=[
+            StoryMemberOut(
+                id=member.id,
+                title=member.title,
+                url=member.url,
+                source=source_ref(member.source),
+                published_at=member.published_at,
+            )
+            for member in story.items
+        ],
+    )
+
+
+def item_detail(
+    item: Item,
+    *,
+    is_edited: bool = False,
+    revisions: list[Revision] | None = None,
+) -> ItemDetailOut:
     summary = item.current_summary
     assessment = item.current_assessment
+    machine_summaries = [version for version in item.summaries if str(version.author) == "ai"]
+    machine_assessments = [
+        version for version in item.assessments if str(version.author) == "ai"
+    ]
+    machine_summary = machine_summaries[-1] if machine_summaries else None
+    machine_assessment = machine_assessments[-1] if machine_assessments else None
     card = item_card(item, is_edited=is_edited)
     return ItemDetailOut(
         **card.model_dump(),
@@ -318,4 +398,17 @@ def item_detail(item: Item, *, is_edited: bool = False) -> ItemDetailOut:
         claims=[ClaimOut(**claim) for claim in (summary.claims if summary else [])],
         assessment=assessment_out(assessment) if assessment else None,
         user_note=item.user_note,
+        revisions=[
+            RevisionOut(
+                field=revision.field,
+                old_value=revision.old_value,
+                new_value=revision.new_value,
+                author=str(revision.author),
+                reason=revision.reason,
+                created_at=revision.created_at,
+            )
+            for revision in (revisions or [])
+        ],
+        machine_summary=machine_summary.text if machine_summary else None,
+        machine_assessment=assessment_out(machine_assessment) if machine_assessment else None,
     )

@@ -15,7 +15,7 @@ from typing import Protocol
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models import Item, Source, SourceType
+from src.models import Item, Source, SourceCategory, SourceType
 from src.pipeline.normalize import clean_text, content_hash, detect_partial_text, resolve_published_at
 
 logger = logging.getLogger(__name__)
@@ -135,6 +135,7 @@ async def _upsert_item(session: AsyncSession, source: Source, candidate: Collect
         existing.raw_text = text
         existing.content_hash = digest
         existing.title = candidate.title or existing.title
+        existing.item_type = source.item_type
         existing.is_partial_text = detect_partial_text(text)
         existing.processed_at = None  # текст изменился — нужна переобработка
         return "updated"
@@ -147,6 +148,7 @@ async def _upsert_item(session: AsyncSession, source: Source, candidate: Collect
             title=candidate.title or candidate.url,
             raw_text=text,
             content_hash=digest,
+            item_type=source.item_type,
             published_at=published_at,
             published_at_is_approx=is_approx,
             is_partial_text=detect_partial_text(text),
@@ -156,10 +158,15 @@ async def _upsert_item(session: AsyncSession, source: Source, candidate: Collect
     return "created"
 
 
-async def collect_active_sources(session: AsyncSession, limit_per_source: int) -> list[CollectResult]:
-    sources = list(
-        (await session.execute(select(Source).where(Source.is_active.is_(True)))).scalars().all()
-    )
+async def collect_active_sources(
+    session: AsyncSession,
+    limit_per_source: int,
+    categories: set[SourceCategory] | None = None,
+) -> list[CollectResult]:
+    query = select(Source).where(Source.is_active.is_(True))
+    if categories:
+        query = query.where(Source.category.in_(categories))
+    sources = list((await session.execute(query)).scalars().all())
     results = []
     for source in sources:
         results.append(await collect_source(session, source, limit_per_source))

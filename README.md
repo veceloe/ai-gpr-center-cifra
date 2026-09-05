@@ -46,7 +46,6 @@ docs/
 
 evals/                       эталон, разбор ошибок, метрики
 backend/                     реализация по спецификации: пайплайн, оценка, API (см. backend/README.md)
-news_parser/                 драфт Ивана; Telegram-адаптер перенесён в backend/
 .github/workflows/deploy.yml пуш в main → rsync на сервер → compose → health gate; спека в specs/002-deploy/
 deploy/bootstrap.sh          первичная настройка сервера, запускается человеком один раз
 context/                     первоисточники заказчика, только чтение

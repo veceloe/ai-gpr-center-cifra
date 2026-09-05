@@ -26,6 +26,7 @@ Digest *──* Item             (через DigestItem)
 | url | str | адрес ленты, страницы или канала |
 | title | str | отображаемое название |
 | category | enum | `media` · `regulator` · `telegram` — категория из кейса |
+| item_type | enum | `news` · `act` — тип всех материалов источника; фиксируется при его добавлении (FR-003, FR-013) |
 | is_active | bool | отключение без удаления (FR-004) |
 | poll_interval_min | int | 15 по умолчанию, 60 для регуляторов |
 | last_polled_at | datetime | |
@@ -39,7 +40,7 @@ Digest *──* Item             (через DigestItem)
 | source_id | FK Source | |
 | url | str unique | ключ дедупликации по URL (FR-007) |
 | title | str | |
-| raw_text | text | извлечённый текст |
+| raw_text | text | снапшот извлечённого полного текста; для НПА включает текст приложенного документа (FR-006) |
 | content_hash | str | обнаружение изменения текста по тому же URL |
 | published_at | datetime? | |
 | published_at_is_approx | bool | дата не найдена, использована дата сбора |
@@ -175,9 +176,10 @@ Digest *──* Item             (через DigestItem)
 | old_value | json | |
 | new_value | json | |
 | author | str | |
+| reason | str? | причина скрытия или другой корректировки |
 | created_at | datetime | |
 
-Основание для FR-043 (не перезаписывать отредактированное) и FR-081 (измерение точности по расхождениям машина/человек).
+Основание для FR-043 (не перезаписывать отредактированное) и FR-081 (измерение точности по расхождениям машина/человек). Команда `python -m src.cli export-revisions` выгружает журнал в `evals/revisions.jsonl`, сохраняя первое машинное значение как `baseline_value`.
 
 ## Инварианты
 
@@ -188,3 +190,4 @@ Digest *──* Item             (через DigestItem)
 5. `Item.url` уникален; повторное поступление обновляет `content_hash` и при изменении создаёт новую версию текста.
 6. Поле, у которого есть запись в `Revision` с `author != ai`, не перезаписывается автоматической переобработкой.
 7. `Act` в состоянии `is_archived = true` не участвует в переоценке, но сохраняет хронологию и историю оценок.
+8. `Item.item_type` при сборе копируется из `Source.item_type`; LLM не определяет и не переопределяет тип материала.

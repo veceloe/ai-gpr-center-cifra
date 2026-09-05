@@ -110,7 +110,13 @@ paths:
       summary: Скрыть или вернуть публикацию (FR-045)
       parameters: [{ name: id, in: path, required: true, schema: { type: integer } }]
       requestBody:
-        content: { application/json: { schema: { type: object, properties: { hidden: { type: boolean } } } } }
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                hidden: { type: boolean }
+                reason: { type: string, description: "Обязательно при hidden=true" }
       responses: { "204": { description: OK } }
 
   /items:
@@ -207,6 +213,7 @@ paths:
                 url:      { type: string }
                 title:    { type: string }
                 category: { type: string, enum: [media, regulator, telegram] }
+                item_type: { type: string, enum: [news, act], description: "Тип материалов; по умолчанию выводится из категории источника" }
       responses:
         "201": { description: Created, content: { application/json: { schema: { $ref: "#/components/schemas/Source" } } } }
         "422": { description: URL недоступен или тип не соответствует содержимому }
@@ -251,11 +258,19 @@ paths:
       parameters: [{ name: id, in: path, required: true, schema: { type: integer } }]
       responses: { "202": { description: Accepted } }
 
+  /stories/{id}:
+    get:
+      tags: [items]
+      summary: Карточка события со всеми источниками и ссылками на оригиналы (FR-060)
+      parameters: [{ name: id, in: path, required: true, schema: { type: integer } }]
+      responses: { "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/Story" } } } } }
   /stories/{id}/split:
     post:
       tags: [items]
       summary: Разъединить ошибочно объединённый кластер (FR-062)
-      parameters: [{ name: id, in: path, required: true, schema: { type: integer } }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+        - { name: reason, in: query, required: false, schema: { type: string } }
       responses: { "204": { description: OK } }
 
   /digests:
@@ -318,6 +333,8 @@ components:
             assessment: { $ref: "#/components/schemas/Assessment" }
             user_note:  { type: string, nullable: true }
             revisions:  { type: array, items: { $ref: "#/components/schemas/Revision" } }
+            machine_summary: { type: string, nullable: true, description: "Последняя машинная версия для сравнения с правкой" }
+            machine_assessment: { allOf: [{ $ref: "#/components/schemas/Assessment" }], nullable: true }
 
     Claim:
       type: object
@@ -391,13 +408,14 @@ components:
 
     Source:
       type: object
-      required: [id, type, url, is_active]
+      required: [id, type, url, item_type, is_active]
       properties:
         id:                { type: integer }
         type:              { type: string, enum: [rss, web, telegram, manual] }
         url:               { type: string }
         title:             { type: string }
         category:          { type: string }
+        item_type:         { type: string, enum: [news, act] }
         is_active:         { type: boolean }
         poll_interval_min: { type: integer }
         last_polled_at:    { type: string, format: date-time, nullable: true }
@@ -435,4 +453,26 @@ components:
         old_value:  {}
         new_value:  {}
         author:     { type: string }
+        reason:     { type: string, nullable: true }
         created_at: { type: string, format: date-time }
+
+    Story:
+      type: object
+      required: [id, canonical_title, items]
+      properties:
+        id: { type: integer }
+        canonical_title: { type: string }
+        fact_summary: { type: string }
+        first_seen_at: { type: string, format: date-time }
+        item_count: { type: integer }
+        was_split_by_user: { type: boolean }
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: integer }
+              title: { type: string }
+              url: { type: string }
+              source: { type: object }
+              published_at: { type: string, format: date-time }

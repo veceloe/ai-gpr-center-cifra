@@ -11,7 +11,7 @@ import pytest_asyncio
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from src.db import register_sqlite_functions
-from src.models import Base, CompanyProfile, Item, Source, SourceCategory, SourceType
+from src.models import Base, CompanyProfile, Item, ItemType, Source, SourceCategory, SourceType
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 
@@ -84,6 +84,7 @@ async def item(session: AsyncSession, source: Source) -> Item:
             "становится обязательной с 1 марта 2027 года."
         ),
         content_hash="test-hash",
+        item_type=ItemType.ACT,
         published_at=datetime(2026, 9, 1, tzinfo=UTC),
         tags=[],
     )

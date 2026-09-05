@@ -12,12 +12,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.llm.contracts import (
     ClaimVerdict,
     ClassifyResult,
+    DedupPairResult,
     ScoreResultRaw,
     SummarizeResult,
     VerifyClaimsResult,
 )
 from src.llm.provider import LLMError
-from src.models import Author, CompanyProfile, Item, ItemType, Revision, Topic
+from src.models import Assessment, Author, CompanyProfile, Item, ItemType, Revision, Topic
 from src.pipeline.runner import process_item
 from src.scoring import get_scoring_config
 
@@ -69,8 +70,10 @@ class StubProvider:
             )
         if prompt_id.startswith("classify"):
             return ClassifyResult(
-                item_type=ItemType.ACT, topic=Topic.REGULATORY, act_identifier="ФЗ № 243-ФЗ"
+                topic=Topic.REGULATORY, act_identifier="ФЗ № 243-ФЗ"
             )
+        if prompt_id.startswith("dedup"):
+            return DedupPairResult(relation="unrelated", reason="в тесте один материал")
         if prompt_id.startswith("score_npa"):
             return ScoreResultRaw(
                 scores={"К1": 3, "К2": 3, "К3": 1, "К4": 1, "К5": 0, "К6": 0},
@@ -105,6 +108,7 @@ async def test_full_pipeline_produces_grounded_and_scored_card(
     assert assessment.final_category == "Среднее"
     assert assessment.author == Author.AI
     assert item.item_type == ItemType.ACT
+    assert "Тип материала (задан источником): act" in dict(provider.users)["classify/v1"]
     assert item.is_relevant is True
     assert item.processed_at is not None
 
@@ -247,7 +251,11 @@ async def test_user_edits_survive_reprocessing(
 
     # Человек правит саммари и тематику.
     machine_summary = item.current_summary.text
+    machine_assessment = item.current_assessment
+    assert machine_assessment is not None
     for existing in item.summaries:
+        existing.is_current = False
+    for existing in item.assessments:
         existing.is_current = False
     from src.models import Summary
 
@@ -260,6 +268,31 @@ async def test_user_edits_survive_reprocessing(
     session.add(
         Revision(entity_type="item", entity_id=item.id, field="topic", author=Author.HUMAN)
     )
+    session.add(
+        Assessment(
+            item_id=item.id,
+            profile_id=profile.id,
+            scheme=machine_assessment.scheme,
+            scores={**machine_assessment.scores, "К1": 0},
+            rationales=machine_assessment.rationales,
+            index_value=26.7,
+            category="Низкое",
+            escalation_flags=[],
+            final_category="Низкое",
+            author=Author.HUMAN,
+            is_current=True,
+        )
+    )
+    session.add(
+        Revision(
+            entity_type="assessment",
+            entity_id=item.id,
+            field="scores",
+            old_value=machine_assessment.scores,
+            new_value={**machine_assessment.scores, "К1": 0},
+            author=Author.HUMAN,
+        )
+    )
     item.topic = Topic.COMPETITORS
     await session.commit()
     await session.refresh(item, ["summaries"])
@@ -270,8 +303,11 @@ async def test_user_edits_survive_reprocessing(
 
     assert "summary" in result.skipped_fields
     assert "classification" in result.skipped_fields
+    assert "assessment" in result.skipped_fields
     assert item.current_summary.text == "Моя формулировка сути"
     assert item.current_summary.text != machine_summary
     assert item.topic == Topic.COMPETITORS
+    assert item.current_assessment.author == Author.HUMAN
+    assert item.current_assessment.scores["К1"] == 0
     # Машинная версия не удалена — пользователь может сравнить.
     assert any(s.author == Author.AI for s in item.summaries)

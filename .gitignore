@@ -16,3 +16,4 @@ backend/data/
 backend/.env
 backend/.pytest_cache/
 backend/.ruff_cache/
+*.session

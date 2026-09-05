@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from collections.abc import AsyncGenerator
 
-from sqlalchemy import event
+from sqlalchemy import event, text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
 
 from src.config import DATA_DIR, get_settings
@@ -54,9 +54,64 @@ def get_session_factory() -> async_sessionmaker[AsyncSession]:
     return _session_factory
 
 
+async def apply_compat_migrations(conn) -> None:
+    """Точечные правки существующего app.db: Alembic в прототипе нет."""
+    columns = {
+        row[1] for row in (await conn.execute(text("PRAGMA table_info(sources)"))).all()
+    }
+    if "item_type" not in columns:
+        await conn.execute(
+            text(
+                "ALTER TABLE sources ADD COLUMN item_type VARCHAR(16) "
+                "NOT NULL DEFAULT 'news'"
+            )
+        )
+        await conn.execute(
+            text("UPDATE sources SET item_type = 'act' WHERE category = 'regulator'")
+        )
+    await conn.execute(
+        text("CREATE INDEX IF NOT EXISTS ix_sources_item_type ON sources (item_type)")
+    )
+    story_columns = {
+        row[1] for row in (await conn.execute(text("PRAGMA table_info(stories)"))).all()
+    }
+    if story_columns and "item_count" not in story_columns:
+        await conn.execute(
+            text("ALTER TABLE stories ADD COLUMN item_count INTEGER NOT NULL DEFAULT 0")
+        )
+        await conn.execute(
+            text(
+                """
+                UPDATE stories
+                SET item_count = (
+                    SELECT COUNT(*) FROM items WHERE items.story_id = stories.id
+                )
+                """
+            )
+        )
+    # Материалы, собранные до появления Source.item_type, копируют тип источника.
+    await conn.execute(
+        text(
+            """
+            UPDATE items
+            SET item_type = (
+                SELECT sources.item_type FROM sources WHERE sources.id = items.source_id
+            )
+            WHERE EXISTS (
+                SELECT 1 FROM sources
+                WHERE sources.id = items.source_id
+                  AND sources.item_type IS NOT NULL
+                  AND sources.item_type != items.item_type
+            )
+            """
+        )
+    )
+
+
 async def init_db() -> None:
     async with get_engine().begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        await apply_compat_migrations(conn)
 
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:

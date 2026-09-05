@@ -16,7 +16,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.main import app
 from src.db import get_db
-from src.models import Assessment, AssessmentScheme, Author, CompanyProfile, Item, Source, Summary
+from src.models import (
+    Assessment,
+    AssessmentScheme,
+    Author,
+    CompanyProfile,
+    Item,
+    ItemType,
+    Source,
+    Story,
+    Summary,
+)
 
 
 @pytest_asyncio.fixture
@@ -206,6 +216,9 @@ class TestManualEditing:
         assert body["scores"]["К1"] == 0
         assert body["index_value"] == 53.3
         assert body["author"] == "human"
+        detail = (await client.get(f"/items/{item_id}")).json()
+        assert detail["machine_assessment"]["author"] == "ai"
+        assert any(revision["field"] == "scores" for revision in detail["revisions"])
 
     @pytest.mark.asyncio
     async def test_bad_score_rejected_with_422(
@@ -234,15 +247,71 @@ class TestManualEditing:
         assert any(i["id"] == item_id for i in (await client.get("/feed")).json()["items"])
 
     @pytest.mark.asyncio
-    async def test_edit_marks_card_as_edited(
+    async def test_edit_fields_are_revised_and_machine_summary_is_available(
         self, client: AsyncClient, scored_items: list[Item]
     ) -> None:
         item_id = scored_items[0].id
-        await client.patch(f"/items/{item_id}", json={"user_note": "на совещание 15-го"})
+        machine_summary = (await client.get(f"/items/{item_id}")).json()["summary"]
+        response = await client.patch(
+            f"/items/{item_id}",
+            json={
+                "title": "Исправленный заголовок",
+                "summary": "Проверенное специалистом саммари.",
+                "topic": "regulatory",
+                "tags": ["важно", "реестр ПО"],
+                "user_note": "на совещание 15-го",
+            },
+        )
+        assert response.status_code == 200
 
         body = (await client.get(f"/items/{item_id}")).json()
         assert body["is_edited"] is True
+        assert body["title"] == "Исправленный заголовок"
+        assert body["summary"] == "Проверенное специалистом саммари."
+        assert body["tags"] == ["важно", "реестр ПО"]
         assert body["user_note"] == "на совещание 15-го"
+        assert body["machine_summary"] == machine_summary
+        assert {revision["field"] for revision in body["revisions"]} >= {
+            "title",
+            "text",
+            "topic",
+            "tags",
+            "user_note",
+        }
+        assert all(revision["author"] == "human" for revision in body["revisions"])
+        assert all(revision["created_at"] for revision in body["revisions"])
+
+    @pytest.mark.asyncio
+    async def test_hiding_requires_reason(
+        self, client: AsyncClient, scored_items: list[Item]
+    ) -> None:
+        response = await client.post(
+            f"/items/{scored_items[0].id}/hide",
+            json={"hidden": True},
+        )
+        assert response.status_code == 422
+
+
+class TestSourceItemType:
+    @pytest.mark.asyncio
+    async def test_item_type_is_stored_when_source_is_created(
+        self, client: AsyncClient, session: AsyncSession
+    ) -> None:
+        telegram = await client.post(
+            "/sources",
+            json={"type": "telegram", "url": "https://t.me/example_news"},
+        )
+        regulator = await client.post(
+            "/sources",
+            json={"type": "web", "url": "https://duma.example/documents"},
+        )
+
+        assert telegram.status_code == regulator.status_code == 201
+        assert telegram.json()["item_type"] == ItemType.NEWS
+        assert regulator.json()["item_type"] == ItemType.ACT
+        stored = await session.get(Source, regulator.json()["id"])
+        assert stored is not None
+        assert stored.item_type == ItemType.ACT
 
 
 class TestManualItemCreation:
@@ -275,3 +344,45 @@ class TestHealth:
         response = await client.get("/health")
         assert response.status_code == 200
         assert response.json() == {"status": "ok"}
+
+
+class TestStoryCard:
+    @pytest.mark.asyncio
+    async def test_event_card_lists_original_urls_and_split_unmerges(
+        self,
+        client: AsyncClient,
+        session: AsyncSession,
+        source: Source,
+        scored_items: list[Item],
+    ) -> None:
+        story = Story(
+            canonical_title="Один факт",
+            fact_summary="Повтор публикации",
+            item_count=2,
+        )
+        session.add(story)
+        await session.flush()
+        scored_items[0].story_id = story.id
+        scored_items[1].story_id = story.id
+        await session.commit()
+
+        card = await client.get(f"/stories/{story.id}")
+        assert card.status_code == 200
+        body = card.json()
+        assert body["item_count"] == 2
+        assert {member["url"] for member in body["items"]} == {
+            scored_items[0].url,
+            scored_items[1].url,
+        }
+        assert all(member["source"]["title"] == source.title for member in body["items"])
+
+        feed = (await client.get("/feed")).json()
+        story_rows = [item for item in feed["items"] if item.get("story")]
+        assert len(story_rows) == 1
+        assert story_rows[0]["story"]["item_count"] == 2
+
+        split = await client.post(f"/stories/{story.id}/split")
+        assert split.status_code == 204
+        after = (await client.get(f"/stories/{story.id}")).json()
+        assert after["was_split_by_user"] is True
+        assert after["items"] == []

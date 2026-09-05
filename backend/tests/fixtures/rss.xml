@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Отраслевые новости</title>
+    <link>https://media.example/</link>
+    <item>
+      <guid>news-42</guid>
+      <title>Новые требования к российскому ПО</title>
+      <link>https://media.example/news/42</link>
+      <description><![CDATA[Краткий анонс публикации.]]></description>
+      <pubDate>Fri, 04 Sep 2026 09:30:00 GMT</pubDate>
+    </item>
+  </channel>
+</rss>

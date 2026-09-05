@@ -26,6 +26,7 @@ from src.models import (
     Assessment,
     Author,
     Item,
+    ItemType,
     Revision,
     Source,
     SourceCategory,
@@ -33,7 +34,6 @@ from src.models import (
     Summary,
 )
 from src.pipeline.normalize import clean_text, content_hash, detect_partial_text
-from src.pipeline.runner import get_active_profile
 from src.scoring import ScoringError, get_scoring_config
 from src.scoring import score as compute_score
 
@@ -46,10 +46,12 @@ async def _load_item(db: AsyncSession, item_id: int) -> Item:
     stmt = (
         select(Item)
         .where(Item.id == item_id)
+        .execution_options(populate_existing=True)
         .options(
             selectinload(Item.source),
             selectinload(Item.summaries),
             selectinload(Item.assessments),
+            selectinload(Item.story),
         )
     )
     item = (await db.execute(stmt)).unique().scalar_one_or_none()
@@ -58,16 +60,21 @@ async def _load_item(db: AsyncSession, item_id: int) -> Item:
     return item
 
 
-async def _has_edits(db: AsyncSession, item_id: int) -> bool:
-    found = await db.execute(
-        select(Revision.id)
-        .where(
-            Revision.entity_type.in_(("item", "summary", "assessment")),
-            Revision.entity_id == item_id,
+async def _revisions(db: AsyncSession, item_id: int) -> list[Revision]:
+    return list(
+        (
+            await db.execute(
+                select(Revision)
+                .where(
+                    Revision.entity_type.in_(("item", "summary", "assessment")),
+                    Revision.entity_id == item_id,
+                )
+                .order_by(Revision.created_at.desc(), Revision.id.desc())
+            )
         )
-        .limit(1)
+        .scalars()
+        .all()
     )
-    return found.scalar() is not None
 
 
 def _log(
@@ -100,7 +107,8 @@ def _log(
 @router.get("/items/{item_id}", response_model=ItemDetailOut)
 async def get_item(item_id: int, db: Annotated[AsyncSession, Depends(get_db)]) -> ItemDetailOut:
     item = await _load_item(db, item_id)
-    return item_detail(item, is_edited=await _has_edits(db, item_id))
+    revisions = await _revisions(db, item_id)
+    return item_detail(item, is_edited=bool(revisions), revisions=revisions)
 
 
 @router.post("/items", response_model=ItemDetailOut, status_code=status.HTTP_201_CREATED)
@@ -115,6 +123,7 @@ async def create_item(
         source = Source(
             type=SourceType.MANUAL,
             category=SourceCategory.MEDIA,
+            item_type=ItemType.NEWS,
             url=MANUAL_SOURCE_URL,
             title="Добавлено вручную",
             is_active=False,
@@ -137,6 +146,7 @@ async def create_item(
         title=payload.title.strip() or url,
         raw_text=text,
         content_hash=content_hash(text),
+        item_type=source.item_type,
         published_at=published_at,
         published_at_is_approx=payload.published_at is None,
         is_partial_text=detect_partial_text(text),
@@ -178,9 +188,8 @@ async def patch_item(
             existing.is_current = False
         # Правка саммари — новая версия с авторством человека. Машинная остаётся
         # в истории: пользователь должен иметь возможность сравнить.
-        db.add(
+        item.summaries.append(
             Summary(
-                item_id=item.id,
                 text=data["summary"],
                 claims=current.claims if current else [],
                 entities=current.entities if current else {},
@@ -191,7 +200,11 @@ async def patch_item(
         _log(db, "summary", item.id, "text", current.text if current else None, data["summary"])
 
     await db.commit()
-    return item_detail(await _load_item(db, item_id), is_edited=True)
+    return item_detail(
+        await _load_item(db, item_id),
+        is_edited=True,
+        revisions=await _revisions(db, item_id),
+    )
 
 
 @router.patch("/items/{item_id}/assessment", response_model=AssessmentOut)
@@ -220,10 +233,9 @@ async def patch_assessment(
     for existing in item.assessments:
         existing.is_current = False
 
-    profile = await get_active_profile(db)
     updated = Assessment(
         item_id=item.id,
-        profile_id=profile.id,
+        profile_id=current.profile_id,
         scheme=computed.scheme,
         scores=computed.scores,
         rationales=current.rationales,
@@ -251,7 +263,17 @@ async def hide_item(
 ) -> None:
     """Скрытие обратимо — FR-045. Причина сохраняется: без неё сигнал бесполезен
     для последующего тюнинга порогов."""
+    if payload.hidden and not (payload.reason or "").strip():
+        raise HTTPException(status_code=422, detail="Для скрытия материала укажите причину")
     item = await _load_item(db, item_id)
-    _log(db, "item", item.id, "is_hidden", item.is_hidden, payload.hidden, payload.reason)
+    _log(
+        db,
+        "item",
+        item.id,
+        "is_hidden",
+        item.is_hidden,
+        payload.hidden,
+        (payload.reason or "").strip() or None,
+    )
     item.is_hidden = payload.hidden
     await db.commit()

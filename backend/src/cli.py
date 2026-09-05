@@ -24,7 +24,6 @@ SEED_SOURCES = [
     ("web", "regulator", "https://sozd.duma.gov.ru/oz", "СОЗД — законопроекты Госдумы"),
     ("web", "regulator", "https://regulation.gov.ru/projects", "regulation.gov.ru — проекты НПА"),
     ("telegram", "telegram", "https://t.me/government_rus", "Правительство РФ — сводки"),
-    ("telegram", "telegram", "https://t.me/arppsoft", "АРПП — новости"),
     ("rss", "media", "https://telesputnik.ru/rss", "Телеспутник"),
     ("rss", "media", "https://www.vedomosti.ru/rss/news", "Ведомости"),
 ]
@@ -32,9 +31,20 @@ SEED_SOURCES = [
 
 @app.command("init-db")
 def cmd_init_db() -> None:
-    """Создать схему базы данных."""
-    asyncio.run(init_db())
-    typer.echo("Схема создана")
+    """Создать схему и загрузить стартовые данные."""
+    asyncio.run(_initialize_database())
+
+
+async def _initialize_database() -> None:
+    from src.scoring.config import load_scoring_config
+
+    await init_db()
+    # Конфиг оценки не хранится в БД: валидируем его при инициализации, чтобы
+    # ошибка в весах или шкалах обнаруживалась до первого запуска пайплайна.
+    load_scoring_config()
+    await _seed_profiles(initialize_schema=False)
+    await _seed_sources(initialize_schema=False)
+    typer.echo("Схема, профиль компании, источники и конфиг оценки инициализированы")
 
 
 @app.command("seed-profiles")
@@ -43,12 +53,13 @@ def cmd_seed_profiles() -> None:
     asyncio.run(_seed_profiles())
 
 
-async def _seed_profiles() -> None:
+async def _seed_profiles(*, initialize_schema: bool = True) -> None:
     from sqlalchemy import select
 
     from src.models import CompanyProfile
 
-    await init_db()
+    if initialize_schema:
+        await init_db()
     settings = get_settings()
     with Path(settings.company_profile_path).open(encoding="utf-8") as fh:
         payload = yaml.safe_load(fh)
@@ -82,12 +93,13 @@ def cmd_seed_sources() -> None:
     asyncio.run(_seed_sources())
 
 
-async def _seed_sources() -> None:
+async def _seed_sources(*, initialize_schema: bool = True) -> None:
     from sqlalchemy import select
 
-    from src.models import Source, SourceCategory, SourceType
+    from src.models import ItemType, Source, SourceCategory, SourceType
 
-    await init_db()
+    if initialize_schema:
+        await init_db()
     settings = get_settings()
     async with get_session_factory()() as session:
         for type_, category, url, title in SEED_SOURCES:
@@ -99,6 +111,9 @@ async def _seed_sources() -> None:
                 Source(
                     type=SourceType(type_),
                     category=cat,
+                    item_type=(
+                        ItemType.ACT if cat is SourceCategory.REGULATOR else ItemType.NEWS
+                    ),
                     url=url,
                     title=title,
                     poll_interval_min=(
@@ -207,6 +222,26 @@ def cmd_parse_registry(
 
     npa = sum(1 for r in rows if r["kind"] == "act")
     typer.echo(f"Записано {len(rows)} карточек в {out} (НПА {npa}, новостей {len(rows) - npa})")
+
+
+@app.command("export-revisions")
+def cmd_export_revisions(
+    out: Path = typer.Option(
+        EVALS_DIR / "revisions.jsonl",
+        help="куда записать эталонные метки из журнала правок",
+    ),
+) -> None:
+    """Выгрузить расхождения машина/человек для последующих eval-прогонов — FR-081."""
+    asyncio.run(_export_revisions(out))
+
+
+async def _export_revisions(out: Path) -> None:
+    from src.evals.revisions import export_revisions
+
+    await init_db()
+    async with get_session_factory()() as session:
+        count = await export_revisions(session, out)
+    typer.echo(f"Выгружено правок: {count} → {out}")
 
 
 @app.command("verify-formula")

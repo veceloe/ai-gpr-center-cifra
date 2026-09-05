@@ -72,6 +72,30 @@ def _apply_filters(
     return stmt
 
 
+def _hide_story_duplicates(stmt: Select) -> Select:
+    """В ленте одна карточка на событие — остальные источники живут в /stories/{id}.
+
+    Представитель — материал с наибольшим индексом влияния: лента сортируется
+    по воздействию, и прятать более сильную карточку за более ранний id нельзя.
+    """
+    ranked = (
+        select(
+            Item.id,
+            func.row_number()
+            .over(
+                partition_by=Item.story_id,
+                order_by=(Assessment.index_value.desc().nullslast(), Item.id.asc()),
+            )
+            .label("rn"),
+        )
+        .outerjoin(Assessment, (Assessment.item_id == Item.id) & Assessment.is_current.is_(True))
+        .where(Item.story_id.isnot(None))
+        .subquery()
+    )
+    representatives = select(ranked.c.id).where(ranked.c.rn == 1)
+    return stmt.where(or_(Item.story_id.is_(None), Item.id.in_(representatives)))
+
+
 @router.get("/feed", response_model=FeedResponse)
 async def get_feed(
     db: Annotated[AsyncSession, Depends(get_db)],
@@ -109,15 +133,18 @@ async def get_feed(
             selectinload(Item.source),
             selectinload(Item.summaries),
             selectinload(Item.assessments),
+            selectinload(Item.story),
         )
     )
-    stmt = _apply_filters(base, **filters)
+    stmt = _hide_story_duplicates(_apply_filters(base, **filters))
 
-    count_stmt = _apply_filters(
-        select(func.count(func.distinct(Item.id)))
-        .outerjoin(Assessment, (Assessment.item_id == Item.id) & Assessment.is_current.is_(True))
-        .outerjoin(Summary, (Summary.item_id == Item.id) & Summary.is_current.is_(True)),
-        **filters,
+    count_stmt = _hide_story_duplicates(
+        _apply_filters(
+            select(func.count(func.distinct(Item.id)))
+            .outerjoin(Assessment, (Assessment.item_id == Item.id) & Assessment.is_current.is_(True))
+            .outerjoin(Summary, (Summary.item_id == Item.id) & Summary.is_current.is_(True)),
+            **filters,
+        )
     )
     total = (await db.execute(count_stmt)).scalar() or 0
 

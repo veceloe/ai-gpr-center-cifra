@@ -17,6 +17,7 @@ logger = logging.getLogger(__name__)
 
 REQUEST_TIMEOUT = 30.0
 USER_AGENT = "ai-gpr-center/0.1 (industry monitoring prototype)"
+MAX_CONCURRENT_ARTICLES = 4
 
 
 def _to_datetime(parsed: struct_time | None) -> datetime | None:
@@ -69,6 +70,27 @@ class RssAdapter:
                     external_id=entry.get("id") or link,
                 )
             )
+
+        semaphore = asyncio.Semaphore(MAX_CONCURRENT_ARTICLES)
+        async with httpx.AsyncClient(
+            timeout=REQUEST_TIMEOUT, headers={"User-Agent": USER_AGENT}, follow_redirects=True
+        ) as client:
+
+            async def enrich(item: CollectedItem) -> None:
+                async with semaphore:
+                    try:
+                        response = await client.get(item.url)
+                        response.raise_for_status()
+                    except httpx.HTTPError as exc:
+                        logger.debug("RSS-материал %s недоступен: %s", item.url, str(exc)[:120])
+                        return
+                full_text = extract_from_html(response.text)
+                # Некоторые RSS уже содержат полный текст; не заменяем его короткой
+                # страницей-заглушкой или paywall-анонсом.
+                if len(full_text) > len(item.raw_text):
+                    item.raw_text = full_text
+
+            await asyncio.gather(*(enrich(item) for item in items))
         return items
 
 

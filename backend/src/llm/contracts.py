@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field, field_validator
 
-from src.models import ItemType, Topic
+from src.models import Topic
 from src.scoring.config import MAX_SCORE, MIN_SCORE
 
 
@@ -38,7 +38,6 @@ class SummarizeResult(BaseModel):
 class ClassifyResult(BaseModel):
     """LLM-02 · classify."""
 
-    item_type: ItemType
     topic: Topic
     act_identifier: str | None = None
 

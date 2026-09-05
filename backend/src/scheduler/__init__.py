@@ -17,25 +17,38 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from src.config import get_settings
 from src.db import get_session_factory
+from src.models import SourceCategory
 
 logger = logging.getLogger(__name__)
 
 PROCESS_BATCH_LIMIT = 20
 
 
-async def collect_job() -> None:
+async def collect_job(categories: set[SourceCategory] | None = None) -> None:
     from src.collectors import collect_active_sources
 
     settings = get_settings()
     async with get_session_factory()() as session:
         try:
-            results = await collect_active_sources(session, settings.fetch_limit_per_source)
+            results = await collect_active_sources(
+                session,
+                settings.fetch_limit_per_source,
+                categories=categories,
+            )
             created = sum(r.created for r in results)
             failed = [r for r in results if r.error]
             logger.info("Сбор завершён: новых материалов %s, источников с ошибкой %s", created, len(failed))
         except Exception:
             logger.exception("Задача сбора провалилась")
             await session.rollback()
+
+
+async def collect_media_job() -> None:
+    await collect_job({SourceCategory.MEDIA, SourceCategory.TELEGRAM})
+
+
+async def collect_regulator_job() -> None:
+    await collect_job({SourceCategory.REGULATOR})
 
 
 async def process_job() -> None:
@@ -51,7 +64,13 @@ async def process_job() -> None:
         try:
             results = await process_unprocessed(session, build_provider(), PROCESS_BATCH_LIMIT)
             scored = sum(1 for r in results if r.scored)
-            logger.info("Обработка: %s материалов, оценено %s", len(results), scored)
+            clustered = sum(1 for r in results if r.clustered)
+            logger.info(
+                "Обработка: %s материалов, оценено %s, кластеризовано %s",
+                len(results),
+                scored,
+                clustered,
+            )
         except Exception:
             logger.exception("Задача обработки провалилась")
             await session.rollback()
@@ -68,10 +87,18 @@ def setup_scheduler() -> AsyncIOScheduler:
     scheduler = AsyncIOScheduler()
 
     scheduler.add_job(
-        collect_job,
+        collect_media_job,
         "interval",
         minutes=settings.poll_interval_media_min,
-        id="collect_sources",
+        id="collect_media_sources",
+        replace_existing=True,
+        max_instances=1,
+    )
+    scheduler.add_job(
+        collect_regulator_job,
+        "interval",
+        minutes=settings.poll_interval_regulator_min,
+        id="collect_regulator_sources",
         replace_existing=True,
         max_instances=1,
     )

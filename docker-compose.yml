@@ -1,5 +1,4 @@
-# Деплой-конфигурация демо-сервера: только backend по specs/001-ai-monitoring-center/plan.md.
-# Драфт news_parser/ здесь не участвует — у него свой dev-compose внутри каталога.
+# Деплой-конфигурация демо-сервера: backend по specs/001-ai-monitoring-center/plan.md.
 services:
   backend:
     build:

@@ -43,10 +43,12 @@ async def lifespan(app: FastAPI):
     scheduler.start()
     logger.info("Планировщик запущен")
     # Не await: иначе healthcheck деплоя не дождётся открытия порта.
-    asyncio.create_task(warmup(), name="startup-warmup")
+    warmup_task = asyncio.create_task(warmup(), name="startup-warmup")
 
     yield
 
+    if not warmup_task.done():
+        warmup_task.cancel()
     scheduler.shutdown(wait=False)
 
 

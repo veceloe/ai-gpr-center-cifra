@@ -1,5 +1,12 @@
-"""Обработка материалов: нормализация, заземление, оценка."""
+"""Обработка материалов: нормализация, заземление, оценка, кластеризация."""
 
+from src.pipeline.dedup import (
+    MIN_SHARED_ENTITIES,
+    SIMILARITY_THRESHOLD,
+    WINDOW_DAYS,
+    cluster_item,
+    split_story,
+)
 from src.pipeline.grounding import (
     RejectReason,
     build_summary_text,
@@ -19,12 +26,16 @@ from src.pipeline.normalize import (
 from src.pipeline.runner import ProcessResult, get_active_profile, process_item, process_unprocessed
 
 __all__ = [
+    "MIN_SHARED_ENTITIES",
+    "SIMILARITY_THRESHOLD",
+    "WINDOW_DAYS",
     "ProcessResult",
     "RejectReason",
     "build_summary_text",
     "check_entailment",
     "check_quotes",
     "clean_text",
+    "cluster_item",
     "content_hash",
     "detect_partial_text",
     "extract_from_html",
@@ -35,4 +46,5 @@ __all__ = [
     "process_item",
     "process_unprocessed",
     "resolve_published_at",
+    "split_story",
 ]

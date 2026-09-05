@@ -19,8 +19,8 @@ if TYPE_CHECKING:
 class Story(Base):
     """Кластер публикаций об одном факте — FR-060.
 
-    Позиции материалов внутри кластера не схлопываются: различие позиций — отдельное
-    свойство карточки, а не причина не объединять (находка исследования, раздел 3).
+    В одну карточку попадают только материалы про один и тот же факт.
+    Различающиеся позиции (`different_positions`) не склеиваются: это ценность, а не шум (FR-061, H-05).
     """
 
     __tablename__ = "stories"
@@ -29,13 +29,10 @@ class Story(Base):
     canonical_title: Mapped[str] = mapped_column(String(512))
     fact_summary: Mapped[str] = mapped_column(Text)
     first_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    item_count: Mapped[int] = mapped_column(Integer, default=0)
     was_split_by_user: Mapped[bool] = mapped_column(Boolean, default=False)
 
     items: Mapped[list[Item]] = relationship(back_populates="story")
-
-    @property
-    def item_count(self) -> int:
-        return len(self.items)
 
 
 class Item(Base):
