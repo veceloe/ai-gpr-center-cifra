@@ -65,7 +65,7 @@ async def test_track_as_act_creates_dossier_and_get_routes_return_it(
 
 
 @pytest.mark.asyncio
-async def test_track_as_act_requires_act_identifier(
+async def test_track_as_act_uses_url_hash_when_identifier_is_missing(
     client: AsyncClient, session: AsyncSession, source: Source
 ) -> None:
     item = Item(
@@ -82,4 +82,7 @@ async def test_track_as_act_requires_act_identifier(
     await session.commit()
 
     response = await client.post(f"/items/{item.id}/track-as-act")
-    assert response.status_code == 422
+    assert response.status_code == 201
+    body = response.json()
+    assert body["act_identifier"].startswith("url:")
+    assert body["linked_items"][0]["id"] == item.id

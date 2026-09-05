@@ -268,6 +268,144 @@ async def test_act_identifier_creates_minimal_act_for_first_act_item(
 
 
 @pytest.mark.asyncio
+async def test_generic_llm_identifier_uses_regulation_project_id(
+    session: AsyncSession, source, profile: CompanyProfile
+) -> None:
+    item = Item(
+        source_id=source.id,
+        url="https://regulation.gov.ru/projects/170865/",
+        title="Проект приказа",
+        raw_text=item_text(),
+        content_hash="regulation-170865",
+        item_type=ItemType.ACT,
+        published_at=datetime(2026, 9, 1, tzinfo=UTC),
+        tags=[],
+    )
+    session.add(item)
+    await session.commit()
+    provider = StubProvider(
+        **{"classify/v1": ClassifyResult(topic=Topic.REGULATORY, act_identifier="Приказ")}
+    )
+
+    result = await process_item(session, item, provider, profile)
+    await session.commit()
+    await session.refresh(item)
+
+    assert result.act_identifier == "regulation.gov.ru:170865"
+    assert item.act_identifier == "regulation.gov.ru:170865"
+    act = await session.scalar(select(Act).where(Act.act_identifier == "regulation.gov.ru:170865"))
+    assert act is not None
+    assert item.act_id == act.id
+
+
+@pytest.mark.asyncio
+async def test_generic_llm_identifier_uses_sozd_bill_number(
+    session: AsyncSession, source, profile: CompanyProfile
+) -> None:
+    item = Item(
+        source_id=source.id,
+        url="https://sozd.duma.gov.ru/bill/835251-8",
+        title="Проект постановления",
+        raw_text=item_text(),
+        content_hash="sozd-835251-8",
+        item_type=ItemType.ACT,
+        published_at=datetime(2026, 9, 1, tzinfo=UTC),
+        tags=[],
+    )
+    session.add(item)
+    await session.commit()
+    provider = StubProvider(
+        **{
+            "classify/v1": ClassifyResult(
+                topic=Topic.REGULATORY, act_identifier="Проект постановления"
+            )
+        }
+    )
+
+    result = await process_item(session, item, provider, profile)
+    await session.commit()
+    await session.refresh(item)
+
+    assert result.act_identifier == "sozd.duma.gov.ru:835251-8"
+    assert item.act_identifier == "sozd.duma.gov.ru:835251-8"
+    act = await session.scalar(select(Act).where(Act.act_identifier == "sozd.duma.gov.ru:835251-8"))
+    assert act is not None
+    assert item.act_id == act.id
+
+
+@pytest.mark.asyncio
+async def test_different_regulation_project_ids_create_different_acts(
+    session: AsyncSession, source, profile: CompanyProfile
+) -> None:
+    for project_id in ("170865", "170866"):
+        session.add(
+            Item(
+                source_id=source.id,
+                url=f"https://regulation.gov.ru/projects/{project_id}/",
+                title=f"Проект приказа {project_id}",
+                raw_text=item_text(),
+                content_hash=f"regulation-{project_id}",
+                item_type=ItemType.ACT,
+                published_at=datetime(2026, 9, 1, tzinfo=UTC),
+                tags=[],
+            )
+        )
+    await session.commit()
+    provider = StubProvider(
+        **{"classify/v1": ClassifyResult(topic=Topic.REGULATORY, act_identifier="Приказ")}
+    )
+
+    items = list((await session.execute(select(Item).order_by(Item.id))).scalars())
+    for item in items:
+        await process_item(session, item, provider, profile)
+    await session.commit()
+
+    identifiers = {
+        act.act_identifier for act in (await session.execute(select(Act))).scalars()
+    }
+    assert identifiers == {"regulation.gov.ru:170865", "regulation.gov.ru:170866"}
+
+
+@pytest.mark.asyncio
+async def test_same_regulation_project_id_links_to_one_act(
+    session: AsyncSession, source, profile: CompanyProfile
+) -> None:
+    urls = [
+        "https://regulation.gov.ru/projects/170865/",
+        "https://www.regulation.gov.ru/projects/170865/?from=feed",
+    ]
+    for index, url in enumerate(urls):
+        session.add(
+            Item(
+                source_id=source.id,
+                url=url,
+                title=f"Проект приказа {index}",
+                raw_text=item_text(),
+                content_hash=f"regulation-same-{index}",
+                item_type=ItemType.ACT,
+                published_at=datetime(2026, 9, 1, tzinfo=UTC),
+                tags=[],
+            )
+        )
+    await session.commit()
+    provider = StubProvider(
+        **{"classify/v1": ClassifyResult(topic=Topic.REGULATORY, act_identifier="Приказ")}
+    )
+
+    items = list((await session.execute(select(Item).order_by(Item.id))).scalars())
+    for item in items:
+        await process_item(session, item, provider, profile)
+    await session.commit()
+
+    acts = list((await session.execute(select(Act))).scalars())
+    assert len(acts) == 1
+    for item in items:
+        await session.refresh(item)
+        assert item.act_identifier == "regulation.gov.ru:170865"
+        assert item.act_id == acts[0].id
+
+
+@pytest.mark.asyncio
 async def test_two_act_items_with_same_identifier_link_to_same_act(
     session: AsyncSession, source, profile: CompanyProfile
 ) -> None:
@@ -316,9 +454,10 @@ async def test_missing_act_identifier_does_not_fail_pipeline(
     result = await process_item(session, item, provider, profile)
 
     assert result.classified is True
-    assert result.act_identifier is None
-    assert item.act_identifier is None
-    assert item.act_id is None
+    assert result.act_identifier is not None
+    assert result.act_identifier.startswith("url:")
+    assert item.act_identifier == result.act_identifier
+    assert item.act_id is not None
     assert "score_npa/v1" in provider.calls
 
 

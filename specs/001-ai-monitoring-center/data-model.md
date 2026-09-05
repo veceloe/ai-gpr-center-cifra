@@ -53,7 +53,7 @@ Digest *──* Item             (через DigestItem)
 | is_hidden | bool | скрыт пользователем, обратимо (FR-045) |
 | story_id | FK Story? | кластер дублей |
 | act_id | FK Act? | связь с досье (FR-036) |
-| act_identifier | str? | идентификатор НПА из `classify/v1`, используется для связи с досье |
+| act_identifier | str? | канонический ключ НПА: official URL id, специфичный номер из `classify/v1` или URL hash |
 | user_note | text? | рабочая пометка (FR-044) |
 | tags | str[] | |
 
@@ -102,7 +102,7 @@ Digest *──* Item             (через DigestItem)
 | Поле | Тип | Описание |
 |---|---|---|
 | id | int PK | |
-| act_identifier | str | «ФЗ № 243-ФЗ», «Законопроект № 1215252-8» — ключ связывания |
+| act_identifier | str | стабильный ключ связывания: `regulation.gov.ru:170865`, `sozd.duma.gov.ru:835251-8`, «ФЗ № 243-ФЗ» |
 | doc_type | str | федеральный закон · постановление · проект приказа · указ · концепция · поручение |
 | stage | enum | `announcement` · `draft_discussion` · `submitted` · `readings` · `adopted` · `in_force` (FR-032) |
 | source_url | str | СОЗД или regulation.gov.ru |

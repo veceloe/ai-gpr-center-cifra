@@ -12,6 +12,7 @@ from sqlalchemy.orm import selectinload
 from src.api.schemas import ActCardOut, ActDetailOut, act_card, act_detail
 from src.db import get_db
 from src.models import Act, ActEvent, ActEventType, ActStage, Item, ItemType
+from src.pipeline.act_identifier import canonical_act_identifier
 
 router = APIRouter(tags=["acts"])
 
@@ -94,14 +95,14 @@ async def track_as_act(
         act = await _load_act(db, item.act_id)
         act.is_tracked = True
     else:
-        if not item.act_identifier:
+        identifier = canonical_act_identifier(item.act_identifier, item.url)
+        item.act_identifier = identifier
+        if not identifier:
             raise HTTPException(
                 status_code=422,
                 detail="Идентификатор НПА отсутствует: сначала нужна классификация",
             )
-        act = (
-            await db.execute(select(Act).where(Act.act_identifier == item.act_identifier))
-        ).scalar_one_or_none()
+        act = (await db.execute(select(Act).where(Act.act_identifier == identifier))).scalar_one_or_none()
         if act is None:
             act = _new_act_from_item(item)
             db.add(act)

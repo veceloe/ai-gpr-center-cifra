@@ -76,7 +76,9 @@ class LLMProvider(Protocol):
 
 Тип материала не является выходом LLM: он копируется из `Source.item_type` при сборе (FR-013).
 `topic` ∈ `regulatory` | `reputation` | `competitors` | `trends` (FR-014).
-`act_identifier` заполняется только для материала с `Item.item_type = act` и служит ключом связывания с существующим досье (FR-036).
+`act_identifier` заполняется только для материала с `Item.item_type = act`.
+Backend канонизирует ключ досье из официального URL, когда это возможно, и не
+использует общие ответы модели вроде «приказ» или «проект» как ключ `Act` (FR-036).
 
 ---
 

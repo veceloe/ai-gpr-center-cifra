@@ -43,6 +43,7 @@ from src.models import (
     Revision,
     Summary,
 )
+from src.pipeline.act_identifier import canonical_act_identifier
 from src.pipeline.dedup import cluster_item
 from src.pipeline.grounding import build_summary_text, check_entailment, check_quotes, grounding_stats
 from src.scoring import ScoringError, get_scoring_config
@@ -164,8 +165,9 @@ async def process_item(
                 ClassifyResult,
             )
             item.topic = classified.topic
-            result.act_identifier = classified.act_identifier
-            await _link_or_create_act(session, item, classified.act_identifier)
+            result.act_identifier = await _link_or_create_act(
+                session, item, classified.act_identifier
+            )
             result.classified = True
         except LLMError as exc:
             result.error = f"классификация: {exc}"
@@ -210,19 +212,20 @@ async def _link_or_create_act(
     session: AsyncSession,
     item: Item,
     act_identifier: str | None,
-) -> None:
+) -> str | None:
     """Связывает НПА-материал с досье; полный lifecycle стадий остаётся T061-T065."""
     if item.item_type != ItemType.ACT:
-        return
-    item.act_identifier = act_identifier
-    if not act_identifier or item.act_id is not None:
-        return
+        return act_identifier
+    identifier = canonical_act_identifier(act_identifier, item.url)
+    item.act_identifier = identifier
+    if not identifier or item.act_id is not None:
+        return identifier
     act = (
-        await session.execute(select(Act).where(Act.act_identifier == act_identifier))
+        await session.execute(select(Act).where(Act.act_identifier == identifier))
     ).scalar_one_or_none()
     if act is None:
         act = Act(
-            act_identifier=act_identifier,
+            act_identifier=identifier,
             doc_type="НПА",
             stage=ActStage.ANNOUNCEMENT,
             source_url=item.url,
@@ -243,6 +246,7 @@ async def _link_or_create_act(
         )
     item.act_id = act.id
     item.act = act
+    return identifier
 
 
 async def _score_item(
