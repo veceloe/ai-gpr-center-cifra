@@ -19,7 +19,7 @@ from src.collectors.sozd import (
     extract_last_event_date,
     extract_title,
 )
-from src.models import ActStage, Source, SourceCategory, SourceType
+from src.models import ActStage, ItemType, Source, SourceCategory, SourceType
 from src.pipeline.normalize import extract_from_html
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -103,13 +103,18 @@ async def test_fetch_builds_items_from_snapshots(monkeypatch: pytest.MonkeyPatch
         id=1,
         type=SourceType.SOZD,
         category=SourceCategory.REGULATOR,
+        item_type=ItemType.ACT,
         url="https://sozd.duma.gov.ru/oz",
         title="СОЗД",
     )
 
     def handler(request: httpx.Request) -> httpx.Response:
-        if request.url.path == "/oz":
+        if request.url.host == "api.duma.gov.ru" and request.url.path == "/api/search.rss":
+            assert request.url.params["law_type"] == "38"
+            assert request.url.params["status"] == "2"
             return httpx.Response(200, html=LIST_HTML)
+        if request.url.path == "/oz":
+            raise AssertionError("standard /oz source must use official Duma RSS")
         if request.url.path.startswith("/bill/"):
             return httpx.Response(200, html=BILL_HTML)
         return httpx.Response(404)
@@ -145,7 +150,9 @@ async def test_empty_list_raises_clear_error(monkeypatch: pytest.MonkeyPatch) ->
         url="https://sozd.duma.gov.ru/oz",
         title="СОЗД",
     )
-    transport = httpx.MockTransport(lambda r: httpx.Response(200, html="<html><body>пусто</body></html>"))
+    transport = httpx.MockTransport(
+        lambda r: httpx.Response(200, html="<html><body>пусто</body></html>")
+    )
     original = httpx.AsyncClient
     monkeypatch.setattr(
         httpx, "AsyncClient", lambda *a, **kw: original(*a, **{**kw, "transport": transport})

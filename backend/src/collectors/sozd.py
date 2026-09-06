@@ -21,6 +21,7 @@ import asyncio
 import logging
 import re
 from datetime import UTC, date, datetime
+from urllib.parse import urlparse
 
 import httpx
 
@@ -31,6 +32,7 @@ from src.pipeline.normalize import clean_text, extract_from_html
 logger = logging.getLogger(__name__)
 
 BASE = "https://sozd.duma.gov.ru"
+DUMA_SEARCH_RSS = "http://api.duma.gov.ru/api/search.rss"
 REQUEST_TIMEOUT = 30.0
 MAX_CONCURRENT = 3
 USER_AGENT = (
@@ -116,7 +118,9 @@ class SozdAdapter:
     """Собирает карточки законопроектов со страницы списка СОЗД.
 
     В качестве URL источника задаётся страница со списком — например
-    https://sozd.duma.gov.ru/oz — или страница поиска с фильтрами.
+    https://sozd.duma.gov.ru/oz — или страница поиска с фильтрами. Публичная
+    /oz рендерится через JS, поэтому для стандартного списка используем
+    официальный RSS API Государственной Думы.
     """
 
     source_type = SourceType.SOZD
@@ -126,7 +130,13 @@ class SozdAdapter:
         async with httpx.AsyncClient(
             timeout=REQUEST_TIMEOUT, headers=headers, follow_redirects=True
         ) as client:
-            index = await client.get(source.url)
+            if self._uses_official_rss(source.url):
+                index = await client.get(
+                    DUMA_SEARCH_RSS,
+                    params={"law_type": 38, "status": 2},
+                )
+            else:
+                index = await client.get(source.url)
             index.raise_for_status()
 
             numbers = self._bill_numbers(index.text, limit)
@@ -147,6 +157,11 @@ class SozdAdapter:
         collected = [item for item in gathered if item is not None]
         logger.info("СОЗД: карточек получено %s из %s найденных", len(collected), len(numbers))
         return collected
+
+    def _uses_official_rss(self, url: str) -> bool:
+        parsed = urlparse(url)
+        host = parsed.netloc.lower().removeprefix("www.")
+        return host == "sozd.duma.gov.ru" and parsed.path.rstrip("/") in {"", "/oz"}
 
     def _bill_numbers(self, html_text: str, limit: int) -> list[str]:
         seen: list[str] = []
