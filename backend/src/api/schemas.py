@@ -249,6 +249,66 @@ class ActCardOut(BaseModel):
     effective_from: date | None = None
 
 
+class ActPatch(BaseModel):
+    """Смена стадии и архивация досье — FR-032, FR-034, FR-037."""
+
+    stage: str | None = None
+    is_archived: bool | None = None
+    is_tracked: bool | None = None
+    effective_from: date | None = None
+    essence: str | None = None
+    doc_type: str | None = None
+    # Позиция компании по акту — поле, на котором сошлись все изученные трекеры
+    # (LegiScan хранит stance: наблюдаем / поддерживаем / против).
+    position: str | None = None
+    owner: str | None = None
+
+
+class ActEventCreate(BaseModel):
+    """Событие хронологии — FR-033."""
+
+    event_type: str
+    occurred_at: date
+    description: str
+    version_label: str | None = None
+    document_url: str | None = None
+    source_item_id: int | None = None
+
+
+class LinkItemRequest(BaseModel):
+    """Связать материал с досье — FR-036."""
+
+    item_id: int
+
+
+class DigestItemOut(BaseModel):
+    position: int
+    is_excluded: bool
+    item: ItemCardOut
+
+
+class DigestOut(BaseModel):
+    id: int
+    recipient: str
+    title: str
+    created_at: datetime
+    entries: list[DigestItemOut] = Field(default_factory=list)
+
+
+class DigestCreate(BaseModel):
+    """Сборка дайджеста из отобранных материалов — FR-070."""
+
+    recipient: str
+    title: str | None = None
+    item_ids: list[int]
+
+
+class DigestEntryPatch(BaseModel):
+    """Исключение материала из дайджеста без удаления из ленты — FR-071."""
+
+    is_excluded: bool
+
+
 class ActDetailOut(ActCardOut):
     essence: str
     source_url: str
@@ -449,4 +509,21 @@ def item_detail(
         ],
         machine_summary=machine_summary.text if machine_summary else None,
         machine_assessment=assessment_out(machine_assessment) if machine_assessment else None,
+    )
+
+
+def digest_out(digest) -> DigestOut:
+    return DigestOut(
+        id=digest.id,
+        recipient=digest.recipient,
+        title=digest.title,
+        created_at=digest.created_at,
+        entries=[
+            DigestItemOut(
+                position=entry.position,
+                is_excluded=entry.is_excluded,
+                item=item_card(entry.item),
+            )
+            for entry in digest.entries
+        ],
     )

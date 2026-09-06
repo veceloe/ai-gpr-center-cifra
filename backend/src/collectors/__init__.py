@@ -4,7 +4,7 @@
 а не по требованию: `get_adapter` должен знать обо всех типах сразу.
 """
 
-from src.collectors import rss, telegram, web  # noqa: F401 - регистрация адаптеров
+from src.collectors import rss, sozd, telegram, web  # noqa: F401 - регистрация адаптеров
 from src.collectors.base import (
     CollectedItem,
     CollectResult,

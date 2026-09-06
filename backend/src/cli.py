@@ -21,7 +21,7 @@ EVALS_DIR = REPO_ROOT / "evals"
 
 # Источники для MVP — docs/sources.md, отбор «5 источников трёх типов» (FR-001, SC-009).
 SEED_SOURCES = [
-    ("web", "regulator", "https://sozd.duma.gov.ru/oz", "СОЗД — законопроекты Госдумы"),
+    ("sozd", "regulator", "https://sozd.duma.gov.ru/oz", "СОЗД — законопроекты Госдумы"),
     ("web", "regulator", "https://regulation.gov.ru/projects", "regulation.gov.ru — проекты НПА"),
     ("telegram", "telegram", "https://t.me/government_rus", "Правительство РФ — сводки"),
     ("rss", "media", "https://telesputnik.ru/rss", "Телеспутник"),

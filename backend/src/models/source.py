@@ -18,6 +18,7 @@ if TYPE_CHECKING:
 class SourceType(StrEnum):
     RSS = "rss"
     WEB = "web"
+    SOZD = "sozd"
     TELEGRAM = "telegram"
     MANUAL = "manual"
 

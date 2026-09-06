@@ -26,6 +26,7 @@ router = APIRouter(tags=["sources"])
 DEFAULT_CATEGORY = {
     SourceType.RSS: SourceCategory.MEDIA,
     SourceType.WEB: SourceCategory.REGULATOR,
+    SourceType.SOZD: SourceCategory.REGULATOR,
     SourceType.TELEGRAM: SourceCategory.TELEGRAM,
     SourceType.MANUAL: SourceCategory.MEDIA,
 }
