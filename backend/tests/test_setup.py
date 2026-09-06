@@ -41,8 +41,11 @@ async def test_init_db_creates_schema_and_seeds(monkeypatch: pytest.MonkeyPatch,
             profiles = (await session.scalars(select(CompanyProfile))).all()
 
             assert source_count == 5 == len(SEED_SOURCES)
+            # СОЗД — отдельный тип источника, а не обычная веб-страница: у него
+            # свой разбор по номеру законопроекта и стадиям (T064).
             assert {source.type for source in (await session.scalars(select(Source))).all()} == {
                 "rss",
+                "sozd",
                 "telegram",
                 "web",
             }
