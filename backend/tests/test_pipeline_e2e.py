@@ -35,7 +35,7 @@ from src.models import (
     Revision,
     Topic,
 )
-from src.pipeline.runner import process_item
+from src.pipeline.runner import process_item, process_unprocessed
 from src.scoring import get_scoring_config
 
 
@@ -721,3 +721,37 @@ async def test_second_publication_moves_previous_act_assessment_into_history(
     )
     assert len(history) == 2, "вторая публикация должна добавить точку в историю, а не заменить её"
     assert [a.is_current for a in history] == [False, True]
+
+
+@pytest.mark.asyncio
+async def test_clustering_catch_up_is_not_counted_as_processing(
+    session: AsyncSession, item: Item, source, profile: CompanyProfile
+) -> None:
+    """Догоняющая кластеризация не должна попадать в статистику обработки.
+
+    Её записи имеют нулевую длительность. Пока они лежали в общем списке,
+    отчёт завышал число обработанных материалов и занижал среднее время —
+    именно так получилась неверная цифра по SC-003 в первом прогоне корпуса.
+    """
+    done = Item(
+        source_id=source.id,
+        url="https://example.test/already-processed",
+        title="Уже обработанная новость",
+        raw_text=item_text(),
+        content_hash="already-processed",
+        item_type=ItemType.NEWS,
+        published_at=datetime(2026, 9, 1, tzinfo=UTC),
+        processed_at=datetime(2026, 9, 1, tzinfo=UTC),
+    )
+    session.add(done)
+    await session.flush()
+
+    results = await process_unprocessed(session, StubProvider(), limit=5)
+
+    processed = [r for r in results if not r.is_clustering_only]
+    catching_up = [r for r in results if r.is_clustering_only]
+
+    assert [r.item_id for r in processed] == [item.id]
+    assert done.id in [r.item_id for r in catching_up]
+    assert all(r.duration_seconds == 0.0 for r in catching_up)
+    assert processed[0].duration_seconds >= 0.0

@@ -184,10 +184,20 @@ async def _process(limit: int) -> None:
         typer.echo("Нет материалов для обработки")
         return
 
-    scored = sum(1 for r in results if r.scored)
-    total_time = sum(r.duration_seconds for r in results)
-    typer.echo(f"Обработано {len(results)}, оценено {scored}")
-    typer.echo(f"Среднее время на материал: {total_time / len(results):.1f} с (цель SC-003 — 10-15 с)")
+    # Догоняющая кластеризация считается отдельно: это не обработка материала,
+    # и её нулевая длительность занижала бы среднее время в отчёте по SC-003.
+    processed = [r for r in results if not r.is_clustering_only]
+    catching_up = [r for r in results if r.is_clustering_only]
+    scored = sum(1 for r in processed if r.scored)
+    typer.echo(f"Обработано {len(processed)}, оценено {scored}")
+    if catching_up:
+        typer.echo(f"Догоняющая кластеризация ранее обработанных: {len(catching_up)}")
+    if processed:
+        total_time = sum(r.duration_seconds for r in processed)
+        typer.echo(
+            f"Среднее время на материал: {total_time / len(processed):.1f} с "
+            f"(цель SC-003 — 10-15 с)"
+        )
     for r in results:
         if r.grounding:
             g = r.grounding
@@ -517,7 +527,9 @@ async def _evaluate(dataset: Path, limit: int | None, out: Path, profile_slug: s
     )
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(header + text + "\n", encoding="utf-8")
-    cards_path = out.with_name("last-report-cards.jsonl")
+    # Имя разбора выводится из имени отчёта: при сравнении моделей прогоны
+    # идут параллельно, и общий файл они бы затирали друг у друга.
+    cards_path = out.with_name(f"{out.stem}-cards.jsonl")
     cards_path.write_text(dump_cards(report) + "\n", encoding="utf-8")
     typer.echo(f"\nОтчёт сохранён: {out}\nРазбор по карточкам: {cards_path}")
 

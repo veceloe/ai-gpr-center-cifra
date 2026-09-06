@@ -69,6 +69,12 @@ class ProcessResult:
     act_identifier: str | None = None
     error: str | None = None
     duration_seconds: float = 0.0
+    # Догоняющая кластеризация уже обработанных карточек — не обработка материала.
+    # Пока признака не было, эти записи попадали в общий список и портили отчёт:
+    # число «обработано» завышалось, а среднее время на материал занижалось,
+    # потому что у них нулевая длительность. Ровно из этого получилась неверная
+    # цифра SC-003 в первом прогоне корпуса.
+    is_clustering_only: bool = False
 
     def __post_init__(self) -> None:
         self.skipped_fields = self.skipped_fields or []
@@ -469,10 +475,13 @@ async def process_unprocessed(
                     ProcessResult(
                         item_id=item.id,
                         clustered=story is not None and story.item_count > 1,
+                        is_clustering_only=True,
                     )
                 )
             except Exception as exc:
                 await session.rollback()
                 logger.exception("Item %s: догоняющая кластеризация провалилась", item.id)
-                results.append(ProcessResult(item_id=item.id, error=str(exc)[:300]))
+                results.append(
+                    ProcessResult(item_id=item.id, error=str(exc)[:300], is_clustering_only=True)
+                )
     return results
