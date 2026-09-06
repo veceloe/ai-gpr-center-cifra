@@ -343,11 +343,13 @@ async def _seed_demo(limit: int) -> None:
     config = get_scoring_config()
 
     async with get_session_factory()() as session:
+        # Реестр — материалы GS Labs, поэтому профиль берётся по slug, а не
+        # «какой сейчас активен»: активный меняется переключателем в интерфейсе.
         profile = (
-            await session.execute(select(CompanyProfile).where(CompanyProfile.is_active.is_(True)))
+            await session.execute(select(CompanyProfile).where(CompanyProfile.slug == "gs-labs"))
         ).scalar_one_or_none()
         if profile is None:
-            typer.echo("Нет активного профиля: python -m src.cli seed-profiles", err=True)
+            typer.echo("Нет профиля gs-labs: python -m src.cli seed-profiles", err=True)
             raise typer.Exit(1)
 
         source = (
@@ -453,6 +455,71 @@ async def _seed_demo(limit: int) -> None:
         await session.commit()
 
     typer.echo(f"Загружено карточек: {created}")
+
+
+@app.command("evaluate")
+def cmd_evaluate(
+    dataset: Path = typer.Option(EVALS_DIR / "registry_46.jsonl", help="эталонный датасет"),
+    limit: int = typer.Option(0, help="ограничить число карточек (0 — все)"),
+    out: Path = typer.Option(EVALS_DIR / "last-report.txt", help="куда сохранить отчёт"),
+    profile: str = typer.Option("gs-labs", help="slug профиля компании, от лица которой оцениваем"),
+) -> None:
+    """Измерить качество оценки на эталоне заказчика — задача T083.
+
+    Печатает базовую ставку и baseline большинства рядом с любой долей:
+    accuracy без них ничего не значит, потому что большинство материалов
+    нерелевантны и тривиальный классификатор набирает высокий процент.
+    """
+    asyncio.run(_evaluate(dataset, limit or None, out, profile))
+
+
+async def _evaluate(dataset: Path, limit: int | None, out: Path, profile_slug: str) -> None:
+    from sqlalchemy import select
+
+    from src.evals.quality import dump_cards, evaluate, format_report
+    from src.llm import build_provider
+    from src.models import CompanyProfile
+
+    if not dataset.exists():
+        typer.echo(f"Нет эталона: {dataset}. Сначала: python -m src.cli parse-registry", err=True)
+        raise typer.Exit(1)
+    if not get_settings().llm_configured:
+        typer.echo("LLM не настроен: задайте LLM_API_KEY в backend/.env", err=True)
+        raise typer.Exit(1)
+
+    await init_db()
+    async with get_session_factory()() as session:
+        # Профиль задаётся явно, а не берётся «какой сейчас активен». Активный
+        # профиль меняется переключателем в интерфейсе, и замер, зависящий от
+        # состояния UI, невоспроизводим: первый прогон эталона GS Labs ушёл
+        # с профилем «Триколор», потому что его переключили при проверке экранов.
+        profile = (
+            await session.execute(select(CompanyProfile).where(CompanyProfile.slug == profile_slug))
+        ).scalar_one_or_none()
+        if profile is None:
+            typer.echo(
+                f"Нет профиля «{profile_slug}». Доступные: python -m src.cli seed-profiles",
+                err=True,
+            )
+            raise typer.Exit(1)
+        context = profile.as_prompt_context()
+        profile_name = profile.name
+
+    report = await evaluate(dataset, build_provider(), context, limit)
+    text = format_report(report)
+    typer.echo(text)
+
+    header = (
+        f"Отчёт о качестве оценки\n"
+        f"Профиль: {profile_name}\nМодель: {get_settings().llm_model}\n"
+        f"Дата: {__import__('datetime').datetime.now().strftime('%d.%m.%Y %H:%M')}\n"
+        f"{'=' * 70}\n\n"
+    )
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(header + text + "\n", encoding="utf-8")
+    cards_path = out.with_name("last-report-cards.jsonl")
+    cards_path.write_text(dump_cards(report) + "\n", encoding="utf-8")
+    typer.echo(f"\nОтчёт сохранён: {out}\nРазбор по карточкам: {cards_path}")
 
 
 @app.command("export-openapi")

@@ -129,7 +129,7 @@ async def test_full_pipeline_produces_grounded_and_scored_card(
     assert len(summary.accepted_claims) == 2
     assert "Государственная Дума приняла закон об ИИ." in summary.text
     assert summary.prompt_version == "summarize/v1"
-    assert provider.calls[:4] == ["summarize/v1", "verify_claims/v1", "classify/v1", "score_npa/v1"]
+    assert provider.calls[:4] == ["summarize/v1", "verify_claims/v1", "classify/v1", "score_npa/v3"]
 
     assessment = item.current_assessment
     assert assessment is not None
@@ -163,8 +163,8 @@ async def test_collected_act_item_type_selects_npa_scoring(
     await process_item(session, stored, provider, profile)
 
     assert stored.item_type == ItemType.ACT
-    assert "score_npa/v1" in provider.calls
-    assert "score_news/v1" not in provider.calls
+    assert "score_npa/v3" in provider.calls
+    assert "score_news/v3" not in provider.calls
 
 
 @pytest.mark.asyncio
@@ -185,8 +185,8 @@ async def test_collected_news_item_type_selects_news_scoring(
     await process_item(session, stored, provider, profile)
 
     assert stored.item_type == ItemType.NEWS
-    assert "score_news/v1" in provider.calls
-    assert "score_npa/v1" not in provider.calls
+    assert "score_news/v3" in provider.calls
+    assert "score_npa/v3" not in provider.calls
 
 
 @pytest.mark.asyncio
@@ -209,8 +209,8 @@ async def test_classify_response_cannot_retype_act_item(
 
     assert item.item_type == ItemType.ACT
     assert result.act_identifier == "Законопроект № 1215252-8"
-    assert "score_npa/v1" in provider.calls
-    assert "score_news/v1" not in provider.calls
+    assert "score_npa/v3" in provider.calls
+    assert "score_news/v3" not in provider.calls
 
 
 @pytest.mark.asyncio
@@ -458,7 +458,7 @@ async def test_missing_act_identifier_does_not_fail_pipeline(
     assert result.act_identifier.startswith("url:")
     assert item.act_identifier == result.act_identifier
     assert item.act_id is not None
-    assert "score_npa/v1" in provider.calls
+    assert "score_npa/v3" in provider.calls
 
 
 @pytest.mark.asyncio
@@ -561,7 +561,7 @@ async def test_semantically_rejected_claim_never_reaches_summary_or_scoring(
     assert "уголовн" not in summary.text.lower()
     assert summary.rejected_claims[0]["reject_reason"] == "not_entailed"
     downstream_payloads = [
-        user for prompt_id, user in provider.users if prompt_id in {"classify/v1", "score_npa/v1"}
+        user for prompt_id, user in provider.users if prompt_id in {"classify/v1", "score_npa/v3"}
     ]
     assert downstream_payloads
     assert all("уголовную ответственность" not in user for user in downstream_payloads)
@@ -573,7 +573,7 @@ async def test_failed_scoring_keeps_item_in_feed(
 ) -> None:
     """Отказ модели на оценке не теряет материал — он попадает в ленту с пометкой."""
     provider = StubProvider()
-    provider.fail_on = {"score_npa/v1"}
+    provider.fail_on = {"score_npa/v3"}
 
     result = await process_item(session, item, provider, profile)
     await session.commit()

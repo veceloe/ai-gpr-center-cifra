@@ -326,8 +326,8 @@ def test_prompt_ids_cover_current_llm_contract() -> None:
     assert VERIFY_CLAIMS.id == "verify_claims/v1"
     assert CLASSIFY.id == "classify/v1"
     assert DEDUP_PAIR.id == "dedup_pair/v1"
-    assert score_news.id == "score_news/v1"
-    assert score_npa.id == "score_npa/v1"
+    assert score_news.id == "score_news/v3"
+    assert score_npa.id == "score_npa/v3"
     assert "Сегодняшняя дата: 2026-09-03" in score_news.system
     assert "Не определяй итоговую категорию" in score_npa.system
 
