@@ -381,8 +381,12 @@ components:
         stage:          { type: string }
         index_value:    { type: number }
         final_category: { type: string }
+        is_tracked:     { type: boolean }
         is_archived:    { type: boolean }
         effective_from: { type: string, format: date, nullable: true }
+        essence:        { type: string, description: "суть акта — нужна списку досье" }
+        timeline_count: { type: integer }
+        linked_count:   { type: integer }
 
     ActDetail:
       allOf:

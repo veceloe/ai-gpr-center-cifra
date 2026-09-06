@@ -214,10 +214,13 @@ export interface ActCard {
   is_tracked: boolean
   is_archived: boolean
   effective_from: string | null
+  /** Суть и счётчики приходят в списке: без них строка — один идентификатор. */
+  essence: string
+  timeline_count: number
+  linked_count: number
 }
 
 export interface ActDetail extends ActCard {
-  essence: string
   source_url: string
   timeline: ActEvent[]
   /** История оценок — динамика влияния во времени, FR-035. */

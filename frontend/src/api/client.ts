@@ -7,6 +7,7 @@
  */
 
 import type {
+  ActCard,
   ActDetail,
   ActEventType,
   ActStage,
@@ -115,7 +116,7 @@ export const api = {
 
   // --- досье НПА ------------------------------------------------------------
   acts: (params: { stage?: ActStage; archived?: boolean } = {}) =>
-    request<ActDetail[]>(`/acts${query(params)}`),
+    request<ActCard[]>(`/acts${query(params)}`),
 
   act: (id: number) => request<ActDetail>(`/acts/${id}`),
 

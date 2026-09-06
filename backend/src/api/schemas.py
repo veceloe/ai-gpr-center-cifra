@@ -247,6 +247,11 @@ class ActCardOut(BaseModel):
     is_tracked: bool
     is_archived: bool
     effective_from: date | None = None
+    # Суть и число событий нужны списку досье: без них строка показывает только
+    # идентификатор, а у материалов без классификации он служебный.
+    essence: str = ""
+    timeline_count: int = 0
+    linked_count: int = 0
 
 
 class ActPatch(BaseModel):
@@ -310,7 +315,6 @@ class DigestEntryPatch(BaseModel):
 
 
 class ActDetailOut(ActCardOut):
-    essence: str
     source_url: str
     timeline: list[ActEventOut] = Field(default_factory=list)
     assessment_history: list[AssessmentOut] = Field(default_factory=list)
@@ -460,14 +464,17 @@ def act_card(act: Act) -> ActCardOut:
         is_tracked=act.is_tracked,
         is_archived=act.is_archived,
         effective_from=act.effective_from,
+        essence=act.essence,
+        timeline_count=len(act.timeline),
+        linked_count=act.linked_count,
     )
 
 
 def act_detail(act: Act) -> ActDetailOut:
     card = act_card(act)
     return ActDetailOut(
+        # essence уже пришёл из карточки — списку досье он тоже нужен
         **card.model_dump(),
-        essence=act.essence,
         source_url=act.source_url,
         timeline=[act_event_out(event) for event in act.timeline],
         assessment_history=[assessment_out(assessment) for assessment in act.assessments],

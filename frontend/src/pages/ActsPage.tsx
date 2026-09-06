@@ -3,11 +3,11 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ApiError, api } from '../api/client'
-import type { ActDetail } from '../api/types'
+import type { ActCard } from '../api/types'
 import { STAGE_LABELS, actTitle, formatIndex, isDimmed } from '../lib/format'
 
 export function ActsPage() {
-  const [acts, setActs] = useState<ActDetail[]>([])
+  const [acts, setActs] = useState<ActCard[]>([])
   const [archived, setArchived] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -60,7 +60,8 @@ export function ActsPage() {
               <th>Акт</th>
               <th style={{ width: 130 }}>Стадия</th>
               <th style={{ width: 110 }}>Категория</th>
-              <th style={{ width: 90 }}>Хронология</th>
+              <th style={{ width: 90 }}>Событий</th>
+              <th style={{ width: 100 }}>Материалов</th>
             </tr>
           </thead>
           <tbody>
@@ -81,7 +82,8 @@ export function ActsPage() {
                   <span className="badge">{STAGE_LABELS[act.stage]}</span>
                 </td>
                 <td>{act.final_category ?? '—'}</td>
-                <td className="num">{act.timeline.length}</td>
+                <td className="num">{act.timeline_count}</td>
+                <td className="num">{act.linked_count}</td>
               </tr>
             ))}
           </tbody>

@@ -1,0 +1,3255 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Интеллектуальный центр PR/GR-мониторинга",
+    "description": "Сбор отраслевых новостей и НПА, заземлённая саммаризация и оценка влияния на конкретную компанию по методике заказчика.",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/api/health": {
+      "get": {
+        "tags": [
+          "health"
+        ],
+        "summary": "Health",
+        "operationId": "health_api_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/feed": {
+      "get": {
+        "tags": [
+          "feed"
+        ],
+        "summary": "Get Feed",
+        "operationId": "get_feed_api_feed_get",
+        "parameters": [
+          {
+            "name": "date_from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Date From"
+            }
+          },
+          {
+            "name": "date_to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Date To"
+            }
+          },
+          {
+            "name": "source_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Source Id"
+            }
+          },
+          {
+            "name": "item_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^(news|act)$"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Item Type"
+            }
+          },
+          {
+            "name": "topic",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^(regulatory|reputation|competitors|trends)$"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Topic"
+            }
+          },
+          {
+            "name": "category",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Category"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "поиск по тексту, тегам и сущностям",
+              "title": "Q"
+            },
+            "description": "поиск по тексту, тегам и сущностям"
+          },
+          {
+            "name": "include_irrelevant",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Include Irrelevant"
+            }
+          },
+          {
+            "name": "include_hidden",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Include Hidden"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeedResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/items/{item_id}": {
+      "get": {
+        "tags": [
+          "items"
+        ],
+        "summary": "Get Item",
+        "operationId": "get_item_api_items__item_id__get",
+        "parameters": [
+          {
+            "name": "item_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Item Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ItemDetailOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "items"
+        ],
+        "summary": "Patch Item",
+        "description": "Правка полей. Машинная версия сохраняется, правка не затирается (FR-042, FR-043).",
+        "operationId": "patch_item_api_items__item_id__patch",
+        "parameters": [
+          {
+            "name": "item_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Item Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ItemPatch"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ItemDetailOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/items": {
+      "post": {
+        "tags": [
+          "items"
+        ],
+        "summary": "Create Item",
+        "description": "Ручное добавление материала — FR-009. Проходит ту же обработку, что собранное.",
+        "operationId": "create_item_api_items_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ItemCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ItemDetailOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/items/{item_id}/assessment": {
+      "patch": {
+        "tags": [
+          "items"
+        ],
+        "summary": "Patch Assessment",
+        "description": "Правка баллов с немедленным пересчётом индекса — FR-041.\n\nПользователь исправляет один балл, а не отвергает оценку целиком. Каждая такая\nправка — эталонная метка: расхождение машина/человек пополняет eval-датасет.",
+        "operationId": "patch_assessment_api_items__item_id__assessment_patch",
+        "parameters": [
+          {
+            "name": "item_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Item Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssessmentPatch"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssessmentOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/items/{item_id}/hide": {
+      "post": {
+        "tags": [
+          "items"
+        ],
+        "summary": "Hide Item",
+        "description": "Скрытие обратимо — FR-045. Причина сохраняется: без неё сигнал бесполезен\nдля последующего тюнинга порогов.",
+        "operationId": "hide_item_api_items__item_id__hide_post",
+        "parameters": [
+          {
+            "name": "item_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Item Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HideRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/items/{item_id}/track-as-act": {
+      "post": {
+        "tags": [
+          "acts"
+        ],
+        "summary": "Track As Act",
+        "operationId": "track_as_act_api_items__item_id__track_as_act_post",
+        "parameters": [
+          {
+            "name": "item_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Item Id"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActDetailOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/acts": {
+      "get": {
+        "tags": [
+          "acts"
+        ],
+        "summary": "List Acts",
+        "operationId": "list_acts_api_acts_get",
+        "parameters": [
+          {
+            "name": "stage",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Stage"
+            }
+          },
+          {
+            "name": "archived",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Archived"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ActCardOut"
+                  },
+                  "title": "Response List Acts Api Acts Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/acts/{act_id}": {
+      "get": {
+        "tags": [
+          "acts"
+        ],
+        "summary": "Get Act",
+        "operationId": "get_act_api_acts__act_id__get",
+        "parameters": [
+          {
+            "name": "act_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Act Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActDetailOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "acts"
+        ],
+        "summary": "Patch Act",
+        "description": "Смена стадии и архивация — FR-032, FR-037.\n\nСмена стадии порождает событие хронологии и помечает досье к переоценке\n(FR-034): документ, который раньше затрагивал компанию, после новой стадии\nможет затрагивать её иначе.",
+        "operationId": "patch_act_api_acts__act_id__patch",
+        "parameters": [
+          {
+            "name": "act_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Act Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ActPatch"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActDetailOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/acts/{act_id}/events": {
+      "post": {
+        "tags": [
+          "acts"
+        ],
+        "summary": "Add Act Event",
+        "description": "Добавить событие в хронологию — FR-033.\n\nКаждое событие ссылается на документ или материал-основание: так версии,\nотзывы и слушания становятся узлами одной хронологии, а не отдельными вкладками.",
+        "operationId": "add_act_event_api_acts__act_id__events_post",
+        "parameters": [
+          {
+            "name": "act_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Act Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ActEventCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActDetailOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/acts/{act_id}/link-item": {
+      "post": {
+        "tags": [
+          "acts"
+        ],
+        "summary": "Link Item",
+        "description": "Связать поступивший материал с существующим досье — FR-036.",
+        "operationId": "link_item_api_acts__act_id__link_item_post",
+        "parameters": [
+          {
+            "name": "act_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Act Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LinkItemRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActDetailOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sources": {
+      "get": {
+        "tags": [
+          "sources"
+        ],
+        "summary": "List Sources",
+        "operationId": "list_sources_api_sources_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SourceOut"
+                  },
+                  "type": "array",
+                  "title": "Response List Sources Api Sources Get"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "sources"
+        ],
+        "summary": "Create Source",
+        "operationId": "create_source_api_sources_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SourceCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sources/{source_id}": {
+      "patch": {
+        "tags": [
+          "sources"
+        ],
+        "summary": "Update Source",
+        "operationId": "update_source_api_sources__source_id__patch",
+        "parameters": [
+          {
+            "name": "source_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Source Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SourceUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "sources"
+        ],
+        "summary": "Delete Source",
+        "description": "Удаление источника не удаляет собранные материалы — FR-004.",
+        "operationId": "delete_source_api_sources__source_id__delete",
+        "parameters": [
+          {
+            "name": "source_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Source Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sources/{source_id}/collect": {
+      "post": {
+        "tags": [
+          "sources"
+        ],
+        "summary": "Collect Now",
+        "description": "Немедленный запуск сбора — нужен на демонстрации, чтобы не ждать расписания.",
+        "operationId": "collect_now_api_sources__source_id__collect_post",
+        "parameters": [
+          {
+            "name": "source_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Source Id"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Collect Now Api Sources  Source Id  Collect Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/profiles": {
+      "get": {
+        "tags": [
+          "profiles"
+        ],
+        "summary": "List Profiles",
+        "operationId": "list_profiles_api_profiles_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ProfileOut"
+                  },
+                  "type": "array",
+                  "title": "Response List Profiles Api Profiles Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/profiles/{profile_id}/activate": {
+      "post": {
+        "tags": [
+          "profiles"
+        ],
+        "summary": "Activate Profile",
+        "operationId": "activate_profile_api_profiles__profile_id__activate_post",
+        "parameters": [
+          {
+            "name": "profile_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Profile Id"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Activate Profile Api Profiles  Profile Id  Activate Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/stories/{story_id}": {
+      "get": {
+        "tags": [
+          "items"
+        ],
+        "summary": "Get Story",
+        "description": "Карточка события: все источники и ссылки на оригиналы.",
+        "operationId": "get_story_api_stories__story_id__get",
+        "parameters": [
+          {
+            "name": "story_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Story Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StoryOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/stories/{story_id}/split": {
+      "post": {
+        "tags": [
+          "items"
+        ],
+        "summary": "Split Cluster",
+        "description": "Разъединить ошибочно объединённый кластер — FR-062.",
+        "operationId": "split_cluster_api_stories__story_id__split_post",
+        "parameters": [
+          {
+            "name": "story_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Story Id"
+            }
+          },
+          {
+            "name": "reason",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Reason"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/digests": {
+      "get": {
+        "tags": [
+          "digests"
+        ],
+        "summary": "List Digests",
+        "operationId": "list_digests_api_digests_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/DigestOut"
+                  },
+                  "type": "array",
+                  "title": "Response List Digests Api Digests Get"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "digests"
+        ],
+        "summary": "Create Digest",
+        "operationId": "create_digest_api_digests_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DigestCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DigestOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/digests/{digest_id}": {
+      "get": {
+        "tags": [
+          "digests"
+        ],
+        "summary": "Get Digest",
+        "operationId": "get_digest_api_digests__digest_id__get",
+        "parameters": [
+          {
+            "name": "digest_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Digest Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DigestOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "digests"
+        ],
+        "summary": "Delete Digest",
+        "operationId": "delete_digest_api_digests__digest_id__delete",
+        "parameters": [
+          {
+            "name": "digest_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Digest Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/digests/{digest_id}/items/{item_id}": {
+      "patch": {
+        "tags": [
+          "digests"
+        ],
+        "summary": "Toggle Entry",
+        "description": "Исключение материала из дайджеста не удаляет его из ленты — FR-071.\n\nОдин и тот же материал бывает полезен одному получателю и лишний другому,\nпоэтому исключение локально для конкретного дайджеста.",
+        "operationId": "toggle_entry_api_digests__digest_id__items__item_id__patch",
+        "parameters": [
+          {
+            "name": "digest_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Digest Id"
+            }
+          },
+          {
+            "name": "item_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Item Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DigestEntryPatch"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DigestOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/digests/{digest_id}/export": {
+      "get": {
+        "tags": [
+          "digests"
+        ],
+        "summary": "Export Digest",
+        "description": "Выгрузка для отправки по почте — FR-072.\n\nСсылка на оригинал сохраняется у каждого материала: получатель должен иметь\nвозможность проверить первоисточник, а не верить пересказу.",
+        "operationId": "export_digest_api_digests__digest_id__export_get",
+        "parameters": [
+          {
+            "name": "digest_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Digest Id"
+            }
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^(html|md)$",
+              "default": "html",
+              "title": "Format"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ActCardOut": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "act_identifier": {
+            "type": "string",
+            "title": "Act Identifier"
+          },
+          "doc_type": {
+            "type": "string",
+            "title": "Doc Type"
+          },
+          "stage": {
+            "type": "string",
+            "title": "Stage"
+          },
+          "index_value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Index Value"
+          },
+          "final_category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Final Category"
+          },
+          "is_tracked": {
+            "type": "boolean",
+            "title": "Is Tracked"
+          },
+          "is_archived": {
+            "type": "boolean",
+            "title": "Is Archived"
+          },
+          "effective_from": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Effective From"
+          },
+          "essence": {
+            "type": "string",
+            "title": "Essence",
+            "default": ""
+          },
+          "timeline_count": {
+            "type": "integer",
+            "title": "Timeline Count",
+            "default": 0
+          },
+          "linked_count": {
+            "type": "integer",
+            "title": "Linked Count",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "act_identifier",
+          "doc_type",
+          "stage",
+          "is_tracked",
+          "is_archived"
+        ],
+        "title": "ActCardOut"
+      },
+      "ActDetailOut": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "act_identifier": {
+            "type": "string",
+            "title": "Act Identifier"
+          },
+          "doc_type": {
+            "type": "string",
+            "title": "Doc Type"
+          },
+          "stage": {
+            "type": "string",
+            "title": "Stage"
+          },
+          "index_value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Index Value"
+          },
+          "final_category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Final Category"
+          },
+          "is_tracked": {
+            "type": "boolean",
+            "title": "Is Tracked"
+          },
+          "is_archived": {
+            "type": "boolean",
+            "title": "Is Archived"
+          },
+          "effective_from": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Effective From"
+          },
+          "essence": {
+            "type": "string",
+            "title": "Essence",
+            "default": ""
+          },
+          "timeline_count": {
+            "type": "integer",
+            "title": "Timeline Count",
+            "default": 0
+          },
+          "linked_count": {
+            "type": "integer",
+            "title": "Linked Count",
+            "default": 0
+          },
+          "source_url": {
+            "type": "string",
+            "title": "Source Url"
+          },
+          "timeline": {
+            "items": {
+              "$ref": "#/components/schemas/ActEventOut"
+            },
+            "type": "array",
+            "title": "Timeline"
+          },
+          "assessment_history": {
+            "items": {
+              "$ref": "#/components/schemas/AssessmentOut"
+            },
+            "type": "array",
+            "title": "Assessment History"
+          },
+          "linked_items": {
+            "items": {
+              "$ref": "#/components/schemas/ItemCardOut"
+            },
+            "type": "array",
+            "title": "Linked Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "act_identifier",
+          "doc_type",
+          "stage",
+          "is_tracked",
+          "is_archived",
+          "source_url"
+        ],
+        "title": "ActDetailOut"
+      },
+      "ActEventCreate": {
+        "properties": {
+          "event_type": {
+            "type": "string",
+            "title": "Event Type"
+          },
+          "occurred_at": {
+            "type": "string",
+            "format": "date",
+            "title": "Occurred At"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "version_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version Label"
+          },
+          "document_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Document Url"
+          },
+          "source_item_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Item Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "event_type",
+          "occurred_at",
+          "description"
+        ],
+        "title": "ActEventCreate",
+        "description": "Событие хронологии — FR-033."
+      },
+      "ActEventOut": {
+        "properties": {
+          "event_type": {
+            "type": "string",
+            "title": "Event Type"
+          },
+          "occurred_at": {
+            "type": "string",
+            "format": "date",
+            "title": "Occurred At"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "version_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version Label"
+          },
+          "document_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Document Url"
+          },
+          "source_item_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Item Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "event_type",
+          "occurred_at",
+          "description"
+        ],
+        "title": "ActEventOut"
+      },
+      "ActPatch": {
+        "properties": {
+          "stage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stage"
+          },
+          "is_archived": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Archived"
+          },
+          "is_tracked": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Tracked"
+          },
+          "effective_from": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Effective From"
+          },
+          "essence": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Essence"
+          },
+          "doc_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Doc Type"
+          },
+          "position": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Position"
+          },
+          "owner": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner"
+          }
+        },
+        "type": "object",
+        "title": "ActPatch",
+        "description": "Смена стадии и архивация досье — FR-032, FR-034, FR-037."
+      },
+      "AssessmentOut": {
+        "properties": {
+          "scheme": {
+            "type": "string",
+            "title": "Scheme"
+          },
+          "scores": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Scores"
+          },
+          "rationales": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Rationales"
+          },
+          "breakdown": {
+            "items": {
+              "$ref": "#/components/schemas/CriterionScoreOut"
+            },
+            "type": "array",
+            "title": "Breakdown"
+          },
+          "index_value": {
+            "type": "number",
+            "title": "Index Value"
+          },
+          "category": {
+            "type": "string",
+            "title": "Category"
+          },
+          "escalation_flags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Escalation Flags"
+          },
+          "final_category": {
+            "type": "string",
+            "title": "Final Category"
+          },
+          "escalated": {
+            "type": "boolean",
+            "title": "Escalated",
+            "default": false
+          },
+          "author": {
+            "type": "string",
+            "title": "Author"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "prompt_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prompt Version"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "scheme",
+          "scores",
+          "rationales",
+          "index_value",
+          "category",
+          "final_category",
+          "author",
+          "created_at"
+        ],
+        "title": "AssessmentOut"
+      },
+      "AssessmentPatch": {
+        "properties": {
+          "scores": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Scores"
+          },
+          "escalation_flags": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Escalation Flags"
+          }
+        },
+        "type": "object",
+        "required": [
+          "scores"
+        ],
+        "title": "AssessmentPatch",
+        "description": "Правка баллов с немедленным пересчётом индекса — FR-041."
+      },
+      "ClaimOut": {
+        "properties": {
+          "statement": {
+            "type": "string",
+            "title": "Statement"
+          },
+          "quote": {
+            "type": "string",
+            "title": "Quote"
+          },
+          "char_start": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Char Start"
+          },
+          "char_end": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Char End"
+          },
+          "quote_found": {
+            "type": "boolean",
+            "title": "Quote Found"
+          },
+          "entailed": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Entailed"
+          },
+          "reject_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reject Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "statement",
+          "quote",
+          "quote_found"
+        ],
+        "title": "ClaimOut",
+        "description": "Заземление утверждения — FR-025."
+      },
+      "CriterionScoreOut": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "score": {
+            "type": "integer",
+            "title": "Score"
+          },
+          "max_score": {
+            "type": "integer",
+            "title": "Max Score"
+          },
+          "weight": {
+            "type": "number",
+            "title": "Weight"
+          },
+          "contribution": {
+            "type": "number",
+            "title": "Contribution"
+          },
+          "scale_label": {
+            "type": "string",
+            "title": "Scale Label"
+          },
+          "rationale": {
+            "type": "string",
+            "title": "Rationale",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "code",
+          "name",
+          "score",
+          "max_score",
+          "weight",
+          "contribution",
+          "scale_label"
+        ],
+        "title": "CriterionScoreOut",
+        "description": "Один критерий в разложении оценки — FR-024."
+      },
+      "DigestCreate": {
+        "properties": {
+          "recipient": {
+            "type": "string",
+            "title": "Recipient"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "item_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Item Ids"
+          }
+        },
+        "type": "object",
+        "required": [
+          "recipient",
+          "item_ids"
+        ],
+        "title": "DigestCreate",
+        "description": "Сборка дайджеста из отобранных материалов — FR-070."
+      },
+      "DigestEntryPatch": {
+        "properties": {
+          "is_excluded": {
+            "type": "boolean",
+            "title": "Is Excluded"
+          }
+        },
+        "type": "object",
+        "required": [
+          "is_excluded"
+        ],
+        "title": "DigestEntryPatch",
+        "description": "Исключение материала из дайджеста без удаления из ленты — FR-071."
+      },
+      "DigestItemOut": {
+        "properties": {
+          "position": {
+            "type": "integer",
+            "title": "Position"
+          },
+          "is_excluded": {
+            "type": "boolean",
+            "title": "Is Excluded"
+          },
+          "item": {
+            "$ref": "#/components/schemas/ItemCardOut"
+          }
+        },
+        "type": "object",
+        "required": [
+          "position",
+          "is_excluded",
+          "item"
+        ],
+        "title": "DigestItemOut"
+      },
+      "DigestOut": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "recipient": {
+            "type": "string",
+            "title": "Recipient"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/DigestItemOut"
+            },
+            "type": "array",
+            "title": "Entries"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "recipient",
+          "title",
+          "created_at"
+        ],
+        "title": "DigestOut"
+      },
+      "EntitiesOut": {
+        "properties": {
+          "who": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Who"
+          },
+          "what": {
+            "type": "string",
+            "title": "What",
+            "default": ""
+          },
+          "when": {
+            "type": "string",
+            "title": "When",
+            "default": ""
+          },
+          "consequences": {
+            "type": "string",
+            "title": "Consequences",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "title": "EntitiesOut"
+      },
+      "FeedResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ItemCardOut"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "total"
+        ],
+        "title": "FeedResponse"
+      },
+      "GroundingOut": {
+        "properties": {
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "accepted": {
+            "type": "integer",
+            "title": "Accepted"
+          },
+          "rejected": {
+            "type": "integer",
+            "title": "Rejected"
+          }
+        },
+        "type": "object",
+        "required": [
+          "total",
+          "accepted",
+          "rejected"
+        ],
+        "title": "GroundingOut",
+        "description": "Счётчик неподтверждённого — иначе молчаливое отбрасывание рождает недоверие."
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "HealthResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status",
+            "default": "ok"
+          }
+        },
+        "type": "object",
+        "title": "HealthResponse"
+      },
+      "HideRequest": {
+        "properties": {
+          "hidden": {
+            "type": "boolean",
+            "title": "Hidden",
+            "default": true
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "title": "HideRequest"
+      },
+      "ItemCardOut": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "summary": {
+            "type": "string",
+            "title": "Summary"
+          },
+          "entities": {
+            "$ref": "#/components/schemas/EntitiesOut"
+          },
+          "item_type": {
+            "type": "string",
+            "title": "Item Type"
+          },
+          "topic": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Topic"
+          },
+          "index_value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Index Value"
+          },
+          "final_category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Final Category"
+          },
+          "escalation_flags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Escalation Flags"
+          },
+          "url": {
+            "type": "string",
+            "title": "Url"
+          },
+          "source": {
+            "$ref": "#/components/schemas/SourceRefOut"
+          },
+          "published_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Published At"
+          },
+          "published_at_is_approx": {
+            "type": "boolean",
+            "title": "Published At Is Approx"
+          },
+          "is_partial_text": {
+            "type": "boolean",
+            "title": "Is Partial Text"
+          },
+          "is_relevant": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Relevant"
+          },
+          "is_hidden": {
+            "type": "boolean",
+            "title": "Is Hidden"
+          },
+          "is_edited": {
+            "type": "boolean",
+            "title": "Is Edited"
+          },
+          "assessment_failed": {
+            "type": "boolean",
+            "title": "Assessment Failed"
+          },
+          "grounding": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GroundingOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "story_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Story Id"
+          },
+          "story": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StoryRefOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "act_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Act Id"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Tags"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "summary",
+          "entities",
+          "item_type",
+          "url",
+          "source",
+          "published_at",
+          "published_at_is_approx",
+          "is_partial_text",
+          "is_hidden",
+          "is_edited",
+          "assessment_failed"
+        ],
+        "title": "ItemCardOut"
+      },
+      "ItemCreate": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "raw_text": {
+            "type": "string",
+            "title": "Raw Text"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url"
+          },
+          "published_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Published At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "title",
+          "raw_text"
+        ],
+        "title": "ItemCreate",
+        "description": "Ручное добавление материала — FR-009."
+      },
+      "ItemDetailOut": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "summary": {
+            "type": "string",
+            "title": "Summary"
+          },
+          "entities": {
+            "$ref": "#/components/schemas/EntitiesOut"
+          },
+          "item_type": {
+            "type": "string",
+            "title": "Item Type"
+          },
+          "topic": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Topic"
+          },
+          "index_value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Index Value"
+          },
+          "final_category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Final Category"
+          },
+          "escalation_flags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Escalation Flags"
+          },
+          "url": {
+            "type": "string",
+            "title": "Url"
+          },
+          "source": {
+            "$ref": "#/components/schemas/SourceRefOut"
+          },
+          "published_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Published At"
+          },
+          "published_at_is_approx": {
+            "type": "boolean",
+            "title": "Published At Is Approx"
+          },
+          "is_partial_text": {
+            "type": "boolean",
+            "title": "Is Partial Text"
+          },
+          "is_relevant": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Relevant"
+          },
+          "is_hidden": {
+            "type": "boolean",
+            "title": "Is Hidden"
+          },
+          "is_edited": {
+            "type": "boolean",
+            "title": "Is Edited"
+          },
+          "assessment_failed": {
+            "type": "boolean",
+            "title": "Assessment Failed"
+          },
+          "grounding": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GroundingOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "story_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Story Id"
+          },
+          "story": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StoryRefOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "act_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Act Id"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Tags"
+          },
+          "raw_text": {
+            "type": "string",
+            "title": "Raw Text"
+          },
+          "claims": {
+            "items": {
+              "$ref": "#/components/schemas/ClaimOut"
+            },
+            "type": "array",
+            "title": "Claims"
+          },
+          "assessment": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AssessmentOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "user_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "User Note"
+          },
+          "revisions": {
+            "items": {
+              "$ref": "#/components/schemas/RevisionOut"
+            },
+            "type": "array",
+            "title": "Revisions"
+          },
+          "machine_summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Machine Summary"
+          },
+          "machine_assessment": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AssessmentOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "summary",
+          "entities",
+          "item_type",
+          "url",
+          "source",
+          "published_at",
+          "published_at_is_approx",
+          "is_partial_text",
+          "is_hidden",
+          "is_edited",
+          "assessment_failed",
+          "raw_text"
+        ],
+        "title": "ItemDetailOut"
+      },
+      "ItemPatch": {
+        "properties": {
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary"
+          },
+          "topic": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Topic"
+          },
+          "tags": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tags"
+          },
+          "user_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "User Note"
+          }
+        },
+        "type": "object",
+        "title": "ItemPatch",
+        "description": "Правка полей материала — FR-040, FR-044."
+      },
+      "LinkItemRequest": {
+        "properties": {
+          "item_id": {
+            "type": "integer",
+            "title": "Item Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "item_id"
+        ],
+        "title": "LinkItemRequest",
+        "description": "Связать материал с досье — FR-036."
+      },
+      "ProfileOut": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "slug": {
+            "type": "string",
+            "title": "Slug"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "industry": {
+            "type": "string",
+            "title": "Industry"
+          },
+          "products": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Products"
+          },
+          "regimes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Regimes"
+          },
+          "risk_areas": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Risk Areas"
+          },
+          "growth_areas": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Growth Areas"
+          },
+          "competitors": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Competitors"
+          },
+          "noise_markers": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Noise Markers"
+          },
+          "is_active": {
+            "type": "boolean",
+            "title": "Is Active"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "slug",
+          "name",
+          "industry",
+          "products",
+          "regimes",
+          "risk_areas",
+          "growth_areas",
+          "competitors",
+          "noise_markers",
+          "is_active"
+        ],
+        "title": "ProfileOut"
+      },
+      "RevisionOut": {
+        "properties": {
+          "field": {
+            "type": "string",
+            "title": "Field"
+          },
+          "old_value": {
+            "anyOf": [
+              {},
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Old Value"
+          },
+          "new_value": {
+            "anyOf": [
+              {},
+              {
+                "type": "null"
+              }
+            ],
+            "title": "New Value"
+          },
+          "author": {
+            "type": "string",
+            "title": "Author"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "field",
+          "author",
+          "created_at"
+        ],
+        "title": "RevisionOut"
+      },
+      "SourceCreate": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "title": "Type"
+          },
+          "url": {
+            "type": "string",
+            "title": "Url"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category"
+          },
+          "item_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Item Type"
+          }
+        },
+        "type": "object",
+        "required": [
+          "type",
+          "url"
+        ],
+        "title": "SourceCreate"
+      },
+      "SourceOut": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "type": {
+            "type": "string",
+            "title": "Type"
+          },
+          "category": {
+            "type": "string",
+            "title": "Category"
+          },
+          "item_type": {
+            "type": "string",
+            "title": "Item Type"
+          },
+          "url": {
+            "type": "string",
+            "title": "Url"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "is_active": {
+            "type": "boolean",
+            "title": "Is Active"
+          },
+          "poll_interval_min": {
+            "type": "integer",
+            "title": "Poll Interval Min"
+          },
+          "last_polled_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Polled At"
+          },
+          "last_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error"
+          },
+          "item_count": {
+            "type": "integer",
+            "title": "Item Count",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "type",
+          "category",
+          "item_type",
+          "url",
+          "title",
+          "is_active",
+          "poll_interval_min"
+        ],
+        "title": "SourceOut"
+      },
+      "SourceRefOut": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "type": {
+            "type": "string",
+            "title": "Type"
+          },
+          "category": {
+            "type": "string",
+            "title": "Category"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "type",
+          "category"
+        ],
+        "title": "SourceRefOut"
+      },
+      "SourceUpdate": {
+        "properties": {
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "is_active": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Active"
+          },
+          "poll_interval_min": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Poll Interval Min"
+          }
+        },
+        "type": "object",
+        "title": "SourceUpdate"
+      },
+      "StoryMemberOut": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "url": {
+            "type": "string",
+            "title": "Url"
+          },
+          "source": {
+            "$ref": "#/components/schemas/SourceRefOut"
+          },
+          "published_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Published At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "url",
+          "source",
+          "published_at"
+        ],
+        "title": "StoryMemberOut"
+      },
+      "StoryOut": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "canonical_title": {
+            "type": "string",
+            "title": "Canonical Title"
+          },
+          "fact_summary": {
+            "type": "string",
+            "title": "Fact Summary"
+          },
+          "first_seen_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "First Seen At"
+          },
+          "item_count": {
+            "type": "integer",
+            "title": "Item Count"
+          },
+          "was_split_by_user": {
+            "type": "boolean",
+            "title": "Was Split By User"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/StoryMemberOut"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "canonical_title",
+          "fact_summary",
+          "first_seen_at",
+          "item_count",
+          "was_split_by_user"
+        ],
+        "title": "StoryOut"
+      },
+      "StoryRefOut": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "item_count": {
+            "type": "integer",
+            "title": "Item Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "item_count"
+        ],
+        "title": "StoryRefOut"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    }
+  }
+}

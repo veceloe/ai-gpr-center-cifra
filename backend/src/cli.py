@@ -455,6 +455,27 @@ async def _seed_demo(limit: int) -> None:
     typer.echo(f"Загружено карточек: {created}")
 
 
+@app.command("export-openapi")
+def cmd_export_openapi(
+    out: Path = typer.Option(
+        REPO_ROOT / "specs" / "001-ai-monitoring-center" / "contracts" / "openapi.generated.json",
+        help="куда писать спецификацию",
+    ),
+) -> None:
+    """Выгрузить фактическую спецификацию API.
+
+    Из неё генерируются типы фронтенда. Пока типы писались руками, они молча
+    разошлись с контрактом: список досье объявлялся как ActDetail, хотя backend
+    отдаёт ActCard без поля essence — компилятор промолчал, а браузер упал.
+    """
+    from src.api.main import app as fastapi_app
+
+    spec = fastapi_app.openapi()
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(spec, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    typer.echo(f"Записано: {out} ({len(spec['paths'])} путей)")
+
+
 @app.command("telegram-login")
 def cmd_telegram_login() -> None:
     """Однократная авторизация Telegram: печатает TELEGRAM_STRING_SESSION (ADR-0008)."""

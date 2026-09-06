@@ -10,14 +10,14 @@ from __future__ import annotations
 from datetime import date, datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, String, Text
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, String, Text, func, select
+from sqlalchemy.orm import Mapped, column_property, mapped_column, relationship
 
 from src.models._base import ActEventType, ActStage, Base, utcnow
+from src.models.item import Item
 
 if TYPE_CHECKING:
     from src.models.assessment import Assessment
-    from src.models.item import Item
 
 
 class Act(Base):
@@ -100,3 +100,13 @@ class ActEvent(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     act: Mapped[Act] = relationship(back_populates="timeline")
+
+
+# Число связанных материалов считается скалярным подзапросом, а не длиной
+# коллекции: списку досье нужен счётчик, а не сами материалы. Загружать ради
+# счётчика все Item вместе с их саммари и оценками — лишняя работа, а ленивая
+# подгрузка в асинхронном контексте ещё и падает.
+Act.linked_count = column_property(
+    select(func.count(Item.id)).where(Item.act_id == Act.id).correlate_except(Item).scalar_subquery(),
+    deferred=False,
+)
