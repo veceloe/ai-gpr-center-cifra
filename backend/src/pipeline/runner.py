@@ -371,6 +371,37 @@ async def _replace_assessment(
             is_current=True,
         )
     )
+    # Досье наследует оценку привязанного материала — задача T062, FR-035.
+    # Влияние законопроекта и есть влияние того, о чём написан материал. Без
+    # этого досье оставалось с пустой категорией и пустым графиком динамики,
+    # хотя все связанные материалы оценены: оценки писались только на item_id,
+    # а карточка досье читает собственные assessments по act_id.
+    # Каждая новая публикация или смена стадии добавляет точку в историю,
+    # прежняя оценка сохраняется — из неё и строится динамика влияния.
+    if item.act_id is not None:
+        await session.execute(
+            update(Assessment)
+            .where(Assessment.act_id == item.act_id, Assessment.is_current.is_(True))
+            .values(is_current=False)
+        )
+        session.add(
+            Assessment(
+                act_id=item.act_id,
+                profile_id=profile.id,
+                scheme=computed.scheme,
+                scores=computed.scores,
+                rationales=rationales,
+                index_value=computed.index_value,
+                category=computed.category,
+                escalation_flags=computed.escalation_flags,
+                final_category=computed.final_category,
+                author=Author.AI,
+                model=model,
+                prompt_version=prompt_version,
+                is_current=True,
+            )
+        )
+
     await session.flush()
     await session.refresh(item, ["assessments"])
 
