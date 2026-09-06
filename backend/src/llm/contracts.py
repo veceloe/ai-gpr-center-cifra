@@ -6,9 +6,9 @@
 
 from __future__ import annotations
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
-from src.models import Topic
+from src.models import ActStage, Topic
 from src.scoring.config import MAX_SCORE, MIN_SCORE
 
 
@@ -45,6 +45,26 @@ class ClassifyResult(BaseModel):
     @classmethod
     def _blank_to_none(cls, v: str | None) -> str | None:
         return v.strip() or None if isinstance(v, str) else v
+
+
+class ActLifecycleResult(BaseModel):
+    """LLM-07 · act_lifecycle."""
+
+    stage_candidate: ActStage | None = None
+    confidence: float = Field(ge=0.0, le=1.0)
+    evidence_quote: str | None = None
+    rationale: str = ""
+
+    @field_validator("evidence_quote")
+    @classmethod
+    def _blank_quote_to_none(cls, v: str | None) -> str | None:
+        return v.strip() or None if isinstance(v, str) else v
+
+    @model_validator(mode="after")
+    def _stage_requires_quote(self) -> ActLifecycleResult:
+        if self.stage_candidate is not None and not self.evidence_quote:
+            raise ValueError("stage_candidate требует evidence_quote")
+        return self
 
 
 class ScoreResultRaw(BaseModel):

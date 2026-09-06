@@ -2,6 +2,7 @@
 
 from src.llm.cache import ResponseCache, cache_key
 from src.llm.contracts import (
+    ActLifecycleResult,
     Claim,
     ClaimVerdict,
     ClassifyResult,
@@ -20,6 +21,7 @@ from src.llm.provider import (
 )
 
 __all__ = [
+    "ActLifecycleResult",
     "Claim",
     "ClaimVerdict",
     "ClassifyResult",

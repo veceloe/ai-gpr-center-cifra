@@ -80,7 +80,7 @@ description: "Task list for 001-ai-monitoring-center"
 - [ ] T015 [P] [E2] Каркас маршрутов FastAPI по `contracts/api.openapi.yaml` с заглушками — разблокирует фронтенд
 - [X] T016 [P] [E2] Клиент API и типы TypeScript, сгенерированные из контракта
 - [X] T017 [P] [PM] Распарсить Excel-реестр в `evals/registry_46.jsonl`: текст, баллы К1–К6, индекс, категория, флаг
-- [X] T018 [P] [PM] Написать промпты `summarize/v1`, `classify/v1`, `score_npa/v1`, `score_news/v1`, `dedup_pair/v1` по `contracts/llm-contracts.md`
+- [X] T018 [P] [PM] Написать промпты `summarize/v1`, `classify/v1`, `act_lifecycle/v1`, `score_npa/v1`, `score_news/v1`, `dedup_pair/v1` по `contracts/llm-contracts.md`
 
 **Checkpoint**: база, контракт, LLM-слой и формула готовы — истории можно вести параллельно.
 
@@ -101,7 +101,7 @@ description: "Task list for 001-ai-monitoring-center"
 - [X] T023 [US1] [E1] Шаг классификации: `topic`, `act_identifier`; `item_type` уже задан источником/backend flow и не определяется моделью (FR-013, FR-014)
 - [X] T024 [US1] [E1] Шаг оценки: выбор схемы по `item_type`, вызов `score_npa` или `score_news` с активным профилем компании, вычисление индекса кодом; сохранение версии промпта, модели и автора оценки (FR-015, FR-016, FR-019, FR-051)
 - [X] T025 [US1] [E1] Вывод релевантности из К1 или Н2; нерелевантное не попадает в основную ленту (FR-018)
-- [X] T026 [US1] [E1] Сборка пайплайна `normalize → summarize → classify → score` с замером времени обработки (FR-080)
+- [X] T026 [US1] [E1] Сборка пайплайна `normalize → summarize → classify → act_lifecycle → score` с замером времени обработки (FR-080)
 - [X] T027 [P] [US1] [E2] `GET /feed` с сортировкой по индексу, фильтрами и пагинацией (FR-020, FR-021)
 - [X] T028 [P] [US1] [E2] `GET /items/{id}` с разложением оценки и заземлением (FR-024)
 - [X] T029 [P] [US1] [E2] Полнотекстовый поиск по тексту, тегам и сущностям (FR-022)

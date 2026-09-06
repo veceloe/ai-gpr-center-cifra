@@ -6,6 +6,7 @@
  */
 
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { ApiError, api } from '../api/client'
 import type { ItemDetail as ItemDetailType } from '../api/types'
 import { formatFullDate } from '../lib/format'
@@ -274,9 +275,9 @@ export function ItemDetail({ itemId, onPatch, onToast }: Props) {
                   </button>
                 )}
                 {item.act_id && (
-                  <a className="btn btn-sm" href={`#/acts/${item.act_id}`}>
+                  <Link className="btn btn-sm" to={`/acts/${item.act_id}`}>
                     Открыть досье
-                  </a>
+                  </Link>
                 )}
               </div>
             </div>

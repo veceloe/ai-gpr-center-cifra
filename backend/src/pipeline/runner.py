@@ -19,10 +19,12 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from src.llm.contracts import ClassifyResult, ScoreResultRaw, SummarizeResult
+from src.llm.contracts import ActLifecycleResult, ClassifyResult, ScoreResultRaw, SummarizeResult
 from src.llm.prompts import (
+    ACT_LIFECYCLE,
     CLASSIFY,
     SUMMARIZE,
+    act_lifecycle_user_message,
     build_score_prompt,
     classify_user_message,
     score_user_message,
@@ -51,6 +53,31 @@ from src.scoring import score as compute_score
 
 logger = logging.getLogger(__name__)
 
+MIN_ACT_STAGE_CONFIDENCE = 0.7
+
+STAGE_ORDER = {
+    stage: index
+    for index, stage in enumerate(
+        (
+            ActStage.ANNOUNCEMENT,
+            ActStage.DRAFT_DISCUSSION,
+            ActStage.SUBMITTED,
+            ActStage.READINGS,
+            ActStage.ADOPTED,
+            ActStage.IN_FORCE,
+        )
+    )
+}
+
+STAGE_LABELS = {
+    ActStage.ANNOUNCEMENT: "анонс",
+    ActStage.DRAFT_DISCUSSION: "проект на обсуждении",
+    ActStage.SUBMITTED: "внесён",
+    ActStage.READINGS: "рассмотрение в чтениях",
+    ActStage.ADOPTED: "принят",
+    ActStage.IN_FORCE: "вступил в силу",
+}
+
 SCHEME_BY_TYPE = {
     ItemType.ACT: AssessmentScheme.NPA_K1_K6,
     ItemType.NEWS: AssessmentScheme.NEWS_H1_H4,
@@ -67,6 +94,7 @@ class ProcessResult:
     skipped_fields: list[str] = None  # type: ignore[assignment]
     grounding: dict[str, int] = None  # type: ignore[assignment]
     act_identifier: str | None = None
+    act_stage_candidate: ActStage | None = None
     error: str | None = None
     duration_seconds: float = 0.0
 
@@ -168,6 +196,9 @@ async def process_item(
             result.act_identifier = await _link_or_create_act(
                 session, item, classified.act_identifier
             )
+            result.act_stage_candidate = await _update_act_lifecycle(
+                session, item, provider, summary_text
+            )
             result.classified = True
         except LLMError as exc:
             result.error = f"классификация: {exc}"
@@ -247,6 +278,104 @@ async def _link_or_create_act(
     item.act_id = act.id
     item.act = act
     return identifier
+
+
+async def _update_act_lifecycle(
+    session: AsyncSession,
+    item: Item,
+    provider: LLMProvider,
+    summary_text: str,
+) -> ActStage | None:
+    if item.item_type != ItemType.ACT or item.act_id is None:
+        return None
+
+    act = await session.get(Act, item.act_id)
+    if act is None or act.is_archived:
+        return None
+
+    try:
+        lifecycle = await provider.complete_json(
+            ACT_LIFECYCLE.id,
+            ACT_LIFECYCLE.system,
+            act_lifecycle_user_message(
+                item.title,
+                summary_text,
+                item.raw_text,
+                item.url,
+                str(act.stage),
+                item.act_identifier,
+            ),
+            ActLifecycleResult,
+        )
+    except LLMError as exc:
+        logger.warning("Item %s: стадия НПА не извлечена — %s", item.id, str(exc)[:200])
+        return None
+
+    candidate = lifecycle.stage_candidate
+    if candidate is None:
+        return None
+
+    if lifecycle.confidence < MIN_ACT_STAGE_CONFIDENCE:
+        logger.info(
+            "Item %s: стадия %s пропущена из-за confidence %.2f",
+            item.id,
+            candidate,
+            lifecycle.confidence,
+        )
+        return candidate
+
+    quote = lifecycle.evidence_quote or ""
+    if quote not in item.raw_text:
+        logger.warning(
+            "Item %s: стадия %s пропущена — evidence_quote не найден в исходном тексте",
+            item.id,
+            candidate,
+        )
+        return candidate
+
+    await _advance_act_stage(session, act, item, candidate)
+    return candidate
+
+
+async def _advance_act_stage(
+    session: AsyncSession,
+    act: Act,
+    item: Item,
+    candidate: ActStage,
+) -> None:
+    current = ActStage(act.stage)
+    if STAGE_ORDER[candidate] <= STAGE_ORDER[current]:
+        return
+
+    session.add(
+        ActEvent(
+            act_id=act.id,
+            event_type=ActEventType.STAGE_CHANGE,
+            occurred_at=item.published_at.date(),
+            description=(
+                f"Стадия изменена: {STAGE_LABELS[current]} → "
+                f"{STAGE_LABELS[candidate]}."
+            ),
+            source_item_id=item.id,
+            document_url=item.url,
+        )
+    )
+    session.add(
+        Revision(
+            entity_type="act",
+            entity_id=act.id,
+            field="stage",
+            old_value=str(current),
+            new_value=str(candidate),
+            author=Author.AI,
+        )
+    )
+    act.stage = candidate
+    await session.execute(
+        update(Item)
+        .where(Item.act_id == act.id, Item.id != item.id)
+        .values(processed_at=None)
+    )
 
 
 async def _score_item(

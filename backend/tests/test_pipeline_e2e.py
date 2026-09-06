@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.collectors.base import CollectedItem, _upsert_item
 from src.llm.contracts import (
+    ActLifecycleResult,
     ClaimVerdict,
     ClassifyResult,
     DedupPairResult,
@@ -33,6 +34,7 @@ from src.models import (
     Item,
     ItemType,
     Revision,
+    Story,
     Topic,
 )
 from src.pipeline.runner import process_item
@@ -66,7 +68,12 @@ class StubProvider:
         if prompt_id in self.fail_on:
             raise LLMError(f"смоделированный отказ на {prompt_id}")
         if prompt_id in self.overrides:
-            return self.overrides[prompt_id]
+            override = self.overrides[prompt_id]
+            if isinstance(override, list):
+                if not override:
+                    raise AssertionError(f"ответы для {prompt_id} закончились")
+                return override.pop(0)
+            return override
 
         if prompt_id.startswith("summarize"):
             return SummarizeResult.model_validate(
@@ -96,6 +103,13 @@ class StubProvider:
         if prompt_id.startswith("classify"):
             return ClassifyResult(
                 topic=Topic.REGULATORY, act_identifier="ФЗ № 243-ФЗ"
+            )
+        if prompt_id.startswith("act_lifecycle"):
+            return ActLifecycleResult(
+                stage_candidate=None,
+                confidence=0.0,
+                evidence_quote=None,
+                rationale="явная стадия не найдена",
             )
         if prompt_id.startswith("dedup"):
             return DedupPairResult(relation="unrelated", reason="в тесте один материал")
@@ -129,7 +143,13 @@ async def test_full_pipeline_produces_grounded_and_scored_card(
     assert len(summary.accepted_claims) == 2
     assert "Государственная Дума приняла закон об ИИ." in summary.text
     assert summary.prompt_version == "summarize/v1"
-    assert provider.calls[:4] == ["summarize/v1", "verify_claims/v1", "classify/v1", "score_npa/v1"]
+    assert provider.calls[:5] == [
+        "summarize/v1",
+        "verify_claims/v1",
+        "classify/v1",
+        "act_lifecycle/v1",
+        "score_npa/v1",
+    ]
 
     assessment = item.current_assessment
     assert assessment is not None
@@ -187,6 +207,7 @@ async def test_collected_news_item_type_selects_news_scoring(
     assert stored.item_type == ItemType.NEWS
     assert "score_news/v1" in provider.calls
     assert "score_npa/v1" not in provider.calls
+    assert "act_lifecycle/v1" not in provider.calls
 
 
 @pytest.mark.asyncio
@@ -459,6 +480,262 @@ async def test_missing_act_identifier_does_not_fail_pipeline(
     assert item.act_identifier == result.act_identifier
     assert item.act_id is not None
     assert "score_npa/v1" in provider.calls
+
+
+@pytest.mark.asyncio
+async def test_act_lifecycle_advances_stage_from_structured_outputs(
+    session: AsyncSession, source, profile: CompanyProfile
+) -> None:
+    stage_quotes = [
+        (ActStage.ANNOUNCEMENT, "Опубликован анонс проекта требований к операторам связи."),
+        (ActStage.DRAFT_DISCUSSION, "Проект проходит общественное обсуждение до 15 сентября."),
+        (ActStage.SUBMITTED, "Проект внесён в Государственную Думу."),
+        (ActStage.READINGS, "Законопроект проходит первое чтение."),
+        (ActStage.ADOPTED, "Приказ принят уполномоченным органом."),
+        (ActStage.IN_FORCE, "Приказ вступил в силу с 1 марта 2027 года."),
+    ]
+    for index, (_stage, quote) in enumerate(stage_quotes, start=1):
+        session.add(
+            Item(
+                source_id=source.id,
+                url=f"https://regulation.gov.ru/projects/999001/?stage={index}",
+                title=f"TEST НПА lifecycle {index}",
+                raw_text=f"{quote} {item_text()}",
+                content_hash=f"act-lifecycle-{index}",
+                item_type=ItemType.ACT,
+                published_at=datetime(2026, 9, index, tzinfo=UTC),
+                tags=[],
+            )
+        )
+    await session.commit()
+
+    provider = StubProvider(
+        **{
+            "classify/v1": ClassifyResult(topic=Topic.REGULATORY, act_identifier="Проект"),
+            "act_lifecycle/v1": [
+                ActLifecycleResult(
+                    stage_candidate=stage,
+                    confidence=0.92,
+                    evidence_quote=quote,
+                    rationale="цитата явно описывает текущую стадию",
+                )
+                for stage, quote in stage_quotes
+            ],
+        }
+    )
+    items = list((await session.execute(select(Item).order_by(Item.id))).scalars())
+    for stored in items:
+        await process_item(session, stored, provider, profile)
+        await session.commit()
+
+    acts = list((await session.execute(select(Act))).scalars())
+    assert len(acts) == 1
+    act = acts[0]
+    assert act.act_identifier == "regulation.gov.ru:999001"
+    assert act.stage == ActStage.IN_FORCE
+
+    for stored in items:
+        await session.refresh(stored)
+        assert stored.act_id == act.id
+        assert stored.act_identifier == "regulation.gov.ru:999001"
+
+    events = list(
+        (
+            await session.execute(
+                select(ActEvent)
+                .where(ActEvent.event_type == ActEventType.STAGE_CHANGE)
+                .order_by(ActEvent.id)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert [event.source_item_id for event in events] == [item.id for item in items[1:]]
+    assert [event.document_url for event in events] == [item.url for item in items[1:]]
+
+
+@pytest.mark.asyncio
+async def test_act_lifecycle_does_not_roll_stage_back(
+    session: AsyncSession, source, profile: CompanyProfile
+) -> None:
+    act = Act(
+        act_identifier="regulation.gov.ru:999001",
+        doc_type="НПА",
+        stage=ActStage.ADOPTED,
+        source_url="https://regulation.gov.ru/projects/999001/",
+        essence="Проект уже принят.",
+    )
+    quote = "Проект проходит общественное обсуждение до 15 сентября."
+    item = Item(
+        source_id=source.id,
+        url="https://regulation.gov.ru/projects/999001/?old=discussion",
+        title="Старый материал об обсуждении",
+        raw_text=f"{quote} {item_text()}",
+        content_hash="act-lifecycle-no-rollback",
+        item_type=ItemType.ACT,
+        published_at=datetime(2026, 9, 1, tzinfo=UTC),
+        tags=[],
+    )
+    session.add_all([act, item])
+    await session.commit()
+
+    provider = StubProvider(
+        **{
+            "classify/v1": ClassifyResult(topic=Topic.REGULATORY, act_identifier="Проект"),
+            "act_lifecycle/v1": ActLifecycleResult(
+                stage_candidate=ActStage.DRAFT_DISCUSSION,
+                confidence=0.95,
+                evidence_quote=quote,
+                rationale="цитата описывает обсуждение",
+            ),
+        }
+    )
+    result = await process_item(session, item, provider, profile)
+    await session.commit()
+    await session.refresh(act)
+    await session.refresh(item)
+
+    assert result.act_stage_candidate == ActStage.DRAFT_DISCUSSION
+    assert act.stage == ActStage.ADOPTED
+    assert item.act_id == act.id
+    assert (
+        await session.scalar(
+            select(ActEvent).where(ActEvent.event_type == ActEventType.STAGE_CHANGE)
+        )
+    ) is None
+
+
+@pytest.mark.asyncio
+async def test_act_lifecycle_null_candidate_does_not_change_stage(
+    session: AsyncSession, source, profile: CompanyProfile
+) -> None:
+    act = Act(
+        act_identifier="regulation.gov.ru:999001",
+        doc_type="НПА",
+        stage=ActStage.SUBMITTED,
+        source_url="https://regulation.gov.ru/projects/999001/",
+        essence="Проект внесён.",
+    )
+    item = Item(
+        source_id=source.id,
+        url="https://regulation.gov.ru/projects/999001/?noise=1",
+        title="Материал без явной новой стадии",
+        raw_text=item_text(),
+        content_hash="act-lifecycle-null",
+        item_type=ItemType.ACT,
+        published_at=datetime(2026, 9, 2, tzinfo=UTC),
+        tags=[],
+    )
+    session.add_all([act, item])
+    await session.commit()
+
+    provider = StubProvider(
+        **{
+            "classify/v1": ClassifyResult(topic=Topic.REGULATORY, act_identifier="Проект"),
+            "act_lifecycle/v1": ActLifecycleResult(
+                stage_candidate=None,
+                confidence=0.0,
+                evidence_quote=None,
+                rationale="явная стадия не найдена",
+            ),
+        }
+    )
+    result = await process_item(session, item, provider, profile)
+    await session.commit()
+    await session.refresh(act)
+
+    assert result.act_stage_candidate is None
+    assert act.stage == ActStage.SUBMITTED
+
+
+@pytest.mark.asyncio
+async def test_act_lifecycle_missing_evidence_quote_does_not_change_stage(
+    session: AsyncSession, source, profile: CompanyProfile
+) -> None:
+    act = Act(
+        act_identifier="regulation.gov.ru:999001",
+        doc_type="НПА",
+        stage=ActStage.SUBMITTED,
+        source_url="https://regulation.gov.ru/projects/999001/",
+        essence="Проект внесён.",
+    )
+    item = Item(
+        source_id=source.id,
+        url="https://regulation.gov.ru/projects/999001/?bad-quote=1",
+        title="Материал с неподтверждённой стадией",
+        raw_text=item_text(),
+        content_hash="act-lifecycle-bad-quote",
+        item_type=ItemType.ACT,
+        published_at=datetime(2026, 9, 3, tzinfo=UTC),
+        tags=[],
+    )
+    session.add_all([act, item])
+    await session.commit()
+
+    provider = StubProvider(
+        **{
+            "classify/v1": ClassifyResult(topic=Topic.REGULATORY, act_identifier="Проект"),
+            "act_lifecycle/v1": ActLifecycleResult(
+                stage_candidate=ActStage.ADOPTED,
+                confidence=0.91,
+                evidence_quote="Приказ принят уполномоченным органом.",
+                rationale="цитата не входит в raw_text и должна быть отброшена",
+            ),
+        }
+    )
+    result = await process_item(session, item, provider, profile)
+    await session.commit()
+    await session.refresh(act)
+
+    assert result.act_stage_candidate == ActStage.ADOPTED
+    assert act.stage == ActStage.SUBMITTED
+    assert (
+        await session.scalar(
+            select(ActEvent).where(ActEvent.event_type == ActEventType.STAGE_CHANGE)
+        )
+    ) is None
+
+
+@pytest.mark.asyncio
+async def test_news_flow_skips_act_lifecycle_and_still_clusters_story(
+    session: AsyncSession, source, profile: CompanyProfile
+) -> None:
+    source.item_type = ItemType.NEWS
+    for index in range(2):
+        session.add(
+            Item(
+                source_id=source.id,
+                url=f"https://media.example/news/cluster-{index}",
+                title=f"Госдума приняла закон об ИИ [{index}]",
+                raw_text=item_text(),
+                content_hash=f"news-lifecycle-cluster-{index}",
+                item_type=ItemType.NEWS,
+                published_at=datetime(2026, 9, index + 1, tzinfo=UTC),
+                tags=[],
+            )
+        )
+    await session.commit()
+
+    provider = StubProvider(
+        **{
+            "dedup_pair/v1": DedupPairResult(
+                relation="same_fact", reason="один и тот же факт"
+            )
+        }
+    )
+    items = list((await session.execute(select(Item).order_by(Item.id))).scalars())
+    for stored in items:
+        await process_item(session, stored, provider, profile)
+        await session.commit()
+
+    stories = list((await session.execute(select(Story))).scalars())
+    assert "act_lifecycle/v1" not in provider.calls
+    assert len(stories) == 1
+    assert stories[0].item_count == 2
+    for stored in items:
+        await session.refresh(stored)
+        assert stored.story_id == stories[0].id
+        assert stored.act_id is None
 
 
 @pytest.mark.asyncio
