@@ -45,14 +45,41 @@ fi
 step "5/6 Сборка и запуск"
 $SSH "$USER_@$HOST" "cd $APP_DIR && docker compose up -d --build --remove-orphans"
 
-step "6/6 Health gate"
+step "6/8 Health gate"
+# Порт снаружи контейнера — 8239 (compose пробрасывает 8239:8000). Раньше здесь
+# стоял 8000, и проверка не могла пройти в принципе.
 $SSH "$USER_@$HOST" bash -s <<'REMOTE'
 set -uo pipefail
 cd /opt/ai-gpr-center
 for i in $(seq 1 24); do
-  if curl -fsS http://127.0.0.1:8000/api/health >/dev/null 2>&1; then echo "  health OK после $((i*5)) с"; exit 0; fi
+  if curl -fsS http://127.0.0.1:8239/api/health >/dev/null 2>&1; then echo "  health OK после $((i*5)) с"; exit 0; fi
   sleep 5
 done
 echo "  backend не ответил за 120 с"; docker compose ps; docker compose logs --tail 100; exit 1
 REMOTE
-echo; echo "Задеплоено — http://$HOST:8000/api/health"
+
+step "7/8 Данные демо"
+# Пустая лента — не демонстрация. Переносим локальную базу с уже обработанными
+# материалами: ровно то состояние, которое проверено на своей машине.
+# DEPLOY_SEED_DB=0 отключает перенос, если на сервере уже накоплены свои данные.
+if [ "${DEPLOY_SEED_DB:-1}" = "1" ] && [ -f backend/data/app.db ]; then
+  $SSH "$USER_@$HOST" "cat > /tmp/app.db" < backend/data/app.db
+  $SSH "$USER_@$HOST" bash -s <<'REMOTE'
+set -euo pipefail
+cd /opt/ai-gpr-center
+docker compose cp /tmp/app.db backend:/app/data/app.db
+rm -f /tmp/app.db
+docker compose restart backend >/dev/null
+for i in $(seq 1 24); do
+  curl -fsS http://127.0.0.1:8239/api/health >/dev/null 2>&1 && break
+  sleep 5
+done
+echo "  база перенесена, материалов: $(curl -fsS 'http://127.0.0.1:8239/api/feed?limit=1' | python3 -c 'import sys,json; print(json.load(sys.stdin)["total"])')"
+REMOTE
+else
+  echo "  перенос базы пропущен"
+fi
+
+step "8/8 Проверка снаружи"
+$SSH "$USER_@$HOST" 'curl -fsS -o /dev/null -w "  API: HTTP %{http_code}\n" http://127.0.0.1:8239/api/health'
+echo; echo "Задеплоено — http://$HOST:8239/"
