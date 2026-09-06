@@ -10,9 +10,12 @@ from __future__ import annotations
 import asyncio
 import logging
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
 from src.api.routes import api_router
 from src.config import get_settings
@@ -72,6 +75,33 @@ app.add_middleware(
     allow_headers=["*"],
 )
 app.include_router(api_router)
+
+
+# --- Фронтенд ----------------------------------------------------------------
+# Собранное приложение отдаётся тем же процессом и портом, что API: нет CORS,
+# нет второго адреса в конфигурации, в контейнере один процесс.
+# В dev-режиме фронтенд живёт на :5173 и проксирует /api сюда — этот блок
+# просто молчит, если сборки нет.
+STATIC_DIR = Path(__file__).resolve().parent.parent.parent / "static"
+
+if STATIC_DIR.is_dir():
+    app.mount("/assets", StaticFiles(directory=STATIC_DIR / "assets"), name="assets")
+
+    @app.get("/{full_path:path}", include_in_schema=False)
+    async def spa(full_path: str) -> FileResponse:
+        """Отдаёт index.html на любой не-API путь.
+
+        Маршрутизация в приложении клиентская: /acts/3 должен открываться
+        по прямой ссылке и после перезагрузки страницы, а не давать 404.
+        """
+        candidate = STATIC_DIR / full_path
+        if full_path and candidate.is_file():
+            return FileResponse(candidate)
+        return FileResponse(STATIC_DIR / "index.html")
+
+else:  # pragma: no cover - до первой сборки фронтенда
+    logger.info("Сборки фронтенда нет: %s. Запустите npm run build в frontend/", STATIC_DIR)
+
 
 
 def run() -> None:

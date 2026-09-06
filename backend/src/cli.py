@@ -298,6 +298,163 @@ def cmd_verify_formula(
     typer.echo("Формула воспроизводит 42 фактические карточки реестра точно")
 
 
+@app.command("seed-demo")
+def cmd_seed_demo(
+    limit: int = typer.Option(24, help="сколько карточек реестра загрузить"),
+) -> None:
+    """Наполнить базу карточками из реестра заказчика — для проверки интерфейса.
+
+    Берутся реальные карточки с проставленными человеком баллами, индекс
+    пересчитывается нашей формулой. Модель не вызывается: это фикстура для
+    отладки интерфейса и демонстрации, а не имитация работы конвейера.
+    """
+    asyncio.run(_seed_demo(limit))
+
+
+async def _seed_demo(limit: int) -> None:
+    from datetime import UTC, datetime, timedelta
+
+    from sqlalchemy import select
+
+    from src.evals.registry import load_dataset
+    from src.models import (
+        Assessment,
+        AssessmentScheme,
+        Author,
+        CompanyProfile,
+        Item,
+        ItemType,
+        Source,
+        SourceCategory,
+        SourceType,
+        Summary,
+    )
+    from src.pipeline.normalize import content_hash
+    from src.scoring import get_scoring_config
+    from src.scoring import score as compute_score
+
+    dataset = EVALS_DIR / "registry_46.jsonl"
+    if not dataset.exists():
+        typer.echo("Сначала соберите эталон: python -m src.cli parse-registry", err=True)
+        raise typer.Exit(1)
+
+    await init_db()
+    rows = load_dataset(dataset)[:limit]
+    config = get_scoring_config()
+
+    async with get_session_factory()() as session:
+        profile = (
+            await session.execute(select(CompanyProfile).where(CompanyProfile.is_active.is_(True)))
+        ).scalar_one_or_none()
+        if profile is None:
+            typer.echo("Нет активного профиля: python -m src.cli seed-profiles", err=True)
+            raise typer.Exit(1)
+
+        source = (
+            await session.execute(select(Source).where(Source.url == "internal://registry"))
+        ).scalar_one_or_none()
+        if source is None:
+            source = Source(
+                type=SourceType.MANUAL,
+                category=SourceCategory.REGULATOR,
+                item_type=ItemType.ACT,
+                url="internal://registry",
+                title="Реестр заказчика",
+                is_active=False,
+            )
+            session.add(source)
+            await session.flush()
+
+        created = 0
+        for offset, row in enumerate(rows):
+            url = f"internal://registry/{row['id']}"
+            if (await session.execute(select(Item).where(Item.url == url))).scalar_one_or_none():
+                continue
+
+            text = row.get("text") or row["identifier"]
+            is_act = row["kind"] == "act"
+            item = Item(
+                source_id=source.id,
+                url=url,
+                title=row["identifier"][:900],
+                raw_text=text,
+                content_hash=content_hash(text),
+                published_at=datetime.now(UTC) - timedelta(hours=offset * 3 + 1),
+                item_type=ItemType.ACT if is_act else ItemType.NEWS,
+                topic="regulatory" if is_act else "trends",
+                act_identifier=row["identifier"][:512] if is_act else None,
+                tags=["реестр"],
+                processed_at=datetime.now(UTC),
+            )
+            session.add(item)
+            await session.flush()
+
+            scheme = AssessmentScheme.NPA_K1_K6 if is_act else AssessmentScheme.NEWS_H1_H4
+            flags = (
+                [config.escalation_flags[0].text]
+                if row.get("gold_escalation") and config.escalation_flags
+                else []
+            )
+            computed = compute_score(row["gold_scores"], scheme, flags, config=config)
+
+            sentences = [s.strip() for s in text.split(". ") if len(s.strip()) > 25][:3]
+            claims = [
+                {
+                    "statement": s if s.endswith(".") else f"{s}.",
+                    "quote": s,
+                    "quote_found": True,
+                    "entailed": True,
+                    "char_start": text.find(s),
+                    "char_end": text.find(s) + len(s),
+                    "reject_reason": None,
+                }
+                for s in sentences
+            ]
+            session.add(
+                Summary(
+                    item_id=item.id,
+                    text=" ".join(c["statement"] for c in claims),
+                    claims=claims,
+                    entities={
+                        "who": [row.get("doc_type", "")] if row.get("doc_type") else [],
+                        "what": row["identifier"][:200],
+                        "when": row.get("stage", ""),
+                        "consequences": "",
+                    },
+                    author=Author.AI,
+                    model="registry-fixture",
+                    prompt_version="summarize/v1",
+                    is_current=True,
+                )
+            )
+            session.add(
+                Assessment(
+                    item_id=item.id,
+                    profile_id=profile.id,
+                    scheme=computed.scheme,
+                    scores=computed.scores,
+                    rationales={
+                        code: f"Балл {score} по шкале критерия {code} — из реестра заказчика."
+                        for code, score in computed.scores.items()
+                    },
+                    index_value=computed.index_value,
+                    category=computed.category,
+                    escalation_flags=computed.escalation_flags,
+                    final_category=computed.final_category,
+                    author=Author.AI,
+                    model="registry-fixture",
+                    prompt_version="score/v1",
+                    is_current=True,
+                )
+            )
+            item.is_relevant = computed.is_relevant
+            created += 1
+
+        await session.commit()
+
+    typer.echo(f"Загружено карточек: {created}")
+
+
 @app.command("telegram-login")
 def cmd_telegram_login() -> None:
     """Однократная авторизация Telegram: печатает TELEGRAM_STRING_SESSION (ADR-0008)."""

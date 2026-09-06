@@ -1,3 +1,17 @@
+# --- этап 1: сборка фронтенда --------------------------------------------------
+# Собранная статика попадает в образ готовой: на сервере Node не нужен,
+# а демонстрация не зависит от шага сборки в момент запуска.
+FROM node:22-slim AS frontend
+
+WORKDIR /build
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci --no-audit --no-fund
+
+COPY frontend/ ./
+# Vite настроен собирать в ../backend/static — внутри образа это /backend/static.
+RUN mkdir -p /backend/static && npm run build
+
+# --- этап 2: приложение --------------------------------------------------------
 FROM python:3.12-slim
 
 WORKDIR /app
@@ -10,11 +24,12 @@ RUN apt-get update \
  && apt-get install -y --no-install-recommends curl \
  && rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt .
+COPY backend/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY src/ ./src/
-COPY config/ ./config/
+COPY backend/src/ ./src/
+COPY backend/config/ ./config/
+COPY --from=frontend /backend/static ./static
 
 RUN mkdir -p /app/data
 

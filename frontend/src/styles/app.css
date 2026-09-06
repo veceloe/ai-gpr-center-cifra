@@ -1,0 +1,1014 @@
+/* Дизайн-система интерфейса.
+ *
+ * Цвета взяты из production-CSS сайтов заказчика, а не придуманы:
+ * зелёный #43B02A и графит #231F20 — фирменная пара GS Labs и GS Group,
+ * #F9F9F9 и #D9D9D9 — реальные фон секций и цвет границ с gs-labs.ru.
+ * Зелёный держим акцентом на пяти процентах площади: на сайтах GS он
+ * никогда не заливает фон.
+ *
+ * Светлая тема основная. Обоснование: позитивная полярность даёт лучшую
+ * остроту зрения и точность вычитки, а преимущество растёт при уменьшении
+ * кегля — ровно наш случай, плотная лента мелким шрифтом утром.
+ */
+
+:root {
+  /* --- бренд --- */
+  --brand: #43b02a;
+  --brand-hover: #379123;
+  --brand-soft: #eef8ea;
+
+  /* --- нейтральные --- */
+  --ink: #231f20;
+  --ink-2: #3c424b;
+  --muted: #6b7280;
+  --faint: #9aa1ab;
+  --line: #d9d9d9;
+  --line-soft: #ececec;
+  --canvas: #f9f9f9;
+  --surface: #ffffff;
+  --surface-2: #f3f4f6;
+
+  /* --- серьёзность: рампа светлоты в одном хюэ, а не светофор из пяти цветов.
+     Цветом кодируются только два верхних уровня, нижние гасятся. --- */
+  --sev-critical: #8f1d10;
+  --sev-high: #c2410c;
+  --sev-medium: #9aa1ab;
+  --sev-low: transparent;
+  --risk: #eb5757;
+  --ok: #2e7d5b;
+
+  /* профиль другой компании группы — синий Триколора */
+  --profile-alt: #3649f8;
+
+  --radius: 6px;
+  --radius-sm: 4px;
+  --shadow: 0 1px 2px rgba(35, 31, 32, 0.06), 0 4px 12px rgba(35, 31, 32, 0.04);
+  --shadow-lg: 0 8px 32px rgba(35, 31, 32, 0.12);
+
+  --font: "Golos Text", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-head: "Onest", var(--font);
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* высота строки ленты — переключается плотностью, выбор запоминается */
+  --row-pad: 14px;
+}
+
+:root[data-density="compact"] {
+  --row-pad: 9px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--canvas);
+  color: var(--ink);
+  font-family: var(--font);
+  font-size: 14px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+a {
+  color: var(--ink-2);
+  text-decoration-color: var(--line);
+  text-underline-offset: 2px;
+}
+a:hover {
+  color: var(--brand-hover);
+}
+
+:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/* ------------------------------------------------------------------ каркас */
+
+.shell {
+  display: grid;
+  grid-template-columns: 216px 1fr;
+  min-height: 100vh;
+}
+
+.rail {
+  background: var(--ink-2);
+  color: #fff;
+  padding: 18px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 0 6px;
+}
+.brand-mark {
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+  background: var(--brand);
+  flex: none;
+}
+.brand-text {
+  font-family: var(--font-head);
+  font-weight: 700;
+  font-size: 14px;
+  letter-spacing: -0.01em;
+  line-height: 1.15;
+}
+.brand-sub {
+  font-size: 10.5px;
+  color: rgba(255, 255, 255, 0.5);
+  letter-spacing: 0.03em;
+}
+
+.nav {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.nav a {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  color: rgba(255, 255, 255, 0.72);
+  text-decoration: none;
+  font-size: 13.5px;
+}
+.nav a:hover {
+  background: rgba(255, 255, 255, 0.07);
+  color: #fff;
+}
+.nav a[aria-current="page"] {
+  background: rgba(67, 176, 42, 0.16);
+  color: #fff;
+  font-weight: 500;
+  box-shadow: inset 2px 0 0 var(--brand);
+}
+.nav .count {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.45);
+  font-variant-numeric: tabular-nums;
+}
+
+.rail-foot {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-size: 11.5px;
+  color: rgba(255, 255, 255, 0.42);
+}
+
+.profile-switch {
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: var(--radius-sm);
+  padding: 9px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.profile-switch label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: rgba(255, 255, 255, 0.45);
+}
+.profile-switch select {
+  background: rgba(255, 255, 255, 0.08);
+  border: none;
+  border-radius: 3px;
+  color: #fff;
+  padding: 5px 6px;
+  font-size: 12.5px;
+  width: 100%;
+}
+.profile-switch select option {
+  color: var(--ink);
+}
+
+.main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: rgba(249, 249, 249, 0.92);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--line);
+  padding: 14px 24px 0;
+}
+
+.page-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  padding-bottom: 12px;
+}
+h1 {
+  font-family: var(--font-head);
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  margin: 0;
+}
+.page-sub {
+  margin: 3px 0 0;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+.content {
+  padding: 18px 24px 60px;
+  flex: 1;
+}
+.content.narrow {
+  max-width: 1080px;
+}
+
+/* ------------------------------------------------------------------ фильтры */
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  align-items: center;
+  padding-bottom: 12px;
+}
+.field {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 0 8px;
+  height: 30px;
+}
+.field label {
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.field select,
+.field input {
+  border: none;
+  background: none;
+  outline: none;
+  font-size: 12.5px;
+  max-width: 180px;
+}
+.field.search {
+  min-width: 240px;
+}
+.field.search input {
+  width: 100%;
+  max-width: none;
+}
+
+.btn {
+  height: 30px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 12.5px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.btn:hover {
+  border-color: var(--faint);
+}
+.btn-primary {
+  background: var(--brand);
+  border-color: var(--brand);
+  color: #fff;
+  font-weight: 500;
+}
+.btn-primary:hover {
+  background: var(--brand-hover);
+  border-color: var(--brand-hover);
+}
+.btn-ghost {
+  border-color: transparent;
+  background: none;
+}
+.btn-ghost:hover {
+  background: var(--surface-2);
+  border-color: transparent;
+}
+.btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.btn-sm {
+  height: 25px;
+  padding: 0 9px;
+  font-size: 11.5px;
+}
+
+.seg {
+  display: inline-flex;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--surface);
+}
+.seg button {
+  border: none;
+  background: none;
+  padding: 0 10px;
+  height: 28px;
+  font-size: 12px;
+  cursor: pointer;
+  color: var(--muted);
+}
+.seg button[aria-pressed="true"] {
+  background: var(--ink-2);
+  color: #fff;
+}
+
+/* ------------------------------------------------------------------- лента */
+
+.feed {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 3px 62px 1fr auto;
+  gap: 0 14px;
+  align-items: start;
+  padding: var(--row-pad) 16px var(--row-pad) 0;
+  border-bottom: 1px solid var(--line-soft);
+  cursor: pointer;
+  position: relative;
+}
+.row:last-child {
+  border-bottom: none;
+}
+.row:hover {
+  background: #fcfcfc;
+}
+.row[data-focused="true"] {
+  background: var(--brand-soft);
+}
+.row[data-focused="true"]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  box-shadow: inset 0 0 0 1px rgba(67, 176, 42, 0.4);
+}
+
+/* Кромка серьёзности: цветная только у двух верхних уровней. */
+.sev-edge {
+  align-self: stretch;
+  background: transparent;
+}
+.row[data-sev="Критическое"] .sev-edge {
+  background: var(--sev-critical);
+}
+.row[data-sev="Высокое"] .sev-edge {
+  background: var(--sev-high);
+}
+.row[data-sev="Среднее"] .sev-edge {
+  background: var(--sev-medium);
+}
+
+/* Нижние уровни гасим, а не прячем: сортировка уже сделала работу. */
+.row[data-dim="true"] .row-title {
+  color: var(--muted);
+  font-weight: 400;
+}
+.row[data-dim="true"] .row-summary {
+  color: var(--faint);
+}
+
+.row-index {
+  text-align: right;
+  padding-top: 1px;
+}
+.index-num {
+  font-family: var(--font-mono);
+  font-size: 16px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+}
+.index-cat {
+  font-size: 10px;
+  color: var(--muted);
+  line-height: 1.2;
+  margin-top: 2px;
+}
+.index-none {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--faint);
+}
+
+.row-body {
+  min-width: 0;
+}
+.row-title {
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.35;
+  margin: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.row-summary {
+  margin: 3px 0 0;
+  font-size: 12.5px;
+  color: var(--muted);
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+:root[data-density="compact"] .row-summary {
+  display: none;
+}
+
+.row-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  font-size: 11.5px;
+  color: var(--faint);
+}
+.row-meta .dot::before {
+  content: "·";
+  margin-right: 8px;
+}
+
+/* Спарклайн оценки: шесть сегментов по вкладу критериев, читается
+   периферийным зрением и не требует раскрытия. */
+.spark {
+  display: inline-flex;
+  gap: 2px;
+  align-items: flex-end;
+  height: 12px;
+}
+.spark i {
+  width: 4px;
+  background: var(--line);
+  border-radius: 1px;
+  display: block;
+}
+.spark i[data-filled="true"] {
+  background: var(--ink-2);
+}
+.row[data-sev="Критическое"] .spark i[data-filled="true"],
+.row[data-sev="Высокое"] .spark i[data-filled="true"] {
+  background: var(--sev-high);
+}
+
+.row-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  opacity: 0;
+  padding-top: 2px;
+}
+.row:hover .row-actions,
+.row[data-focused="true"] .row-actions {
+  opacity: 1;
+}
+
+/* --------------------------------------------------------------- раскрытие */
+
+.detail {
+  border-bottom: 1px solid var(--line-soft);
+  background: var(--surface-2);
+  padding: 16px 20px 20px 79px;
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+  gap: 24px;
+}
+@media (max-width: 1080px) {
+  .detail-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.block-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: var(--muted);
+  margin: 0 0 8px;
+}
+
+.claims {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.claim {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 9px 11px;
+}
+.claim p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+}
+.claim .quote {
+  margin-top: 6px;
+  padding-left: 9px;
+  border-left: 2px solid var(--brand);
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.4;
+}
+.claim[data-rejected="true"] {
+  opacity: 0.72;
+  border-style: dashed;
+}
+.claim[data-rejected="true"] .quote {
+  border-left-color: var(--risk);
+}
+.reject-note {
+  margin-top: 5px;
+  font-size: 11px;
+  color: var(--risk);
+}
+
+.grounding-line {
+  font-size: 11.5px;
+  color: var(--muted);
+  margin: 8px 0 0;
+}
+.grounding-line b {
+  color: var(--ink);
+}
+
+/* --- разложение оценки --- */
+.criteria {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.criterion {
+  display: grid;
+  grid-template-columns: 30px 1fr 96px 52px;
+  gap: 10px;
+  align-items: center;
+  padding: 7px 8px;
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  border: 1px solid transparent;
+}
+.criterion:hover {
+  border-color: var(--line);
+}
+.criterion[data-edited="true"] {
+  background: var(--brand-soft);
+  border-color: rgba(67, 176, 42, 0.35);
+}
+.criterion-code {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.criterion-name {
+  font-size: 12.5px;
+  line-height: 1.3;
+  min-width: 0;
+}
+.criterion-scale {
+  font-size: 11px;
+  color: var(--faint);
+  margin-top: 1px;
+  line-height: 1.3;
+}
+.criterion-contrib {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--muted);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Балл — сегментированный контрол 0-3, а не поле ввода: один клик,
+   нет валидации, нет ошибок ввода. */
+.score-seg {
+  display: inline-flex;
+  gap: 2px;
+}
+.score-seg button {
+  width: 21px;
+  height: 21px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  border-radius: 3px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  cursor: pointer;
+  color: var(--faint);
+  padding: 0;
+}
+.score-seg button[aria-pressed="true"] {
+  background: var(--ink-2);
+  border-color: var(--ink-2);
+  color: #fff;
+}
+.criterion[data-edited="true"] .score-seg button[aria-pressed="true"] {
+  background: var(--brand);
+  border-color: var(--brand);
+}
+
+.rationale {
+  grid-column: 2 / -1;
+  font-size: 11.5px;
+  color: var(--muted);
+  line-height: 1.4;
+  padding-top: 2px;
+}
+
+.index-summary {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+.index-summary .big {
+  font-family: var(--font-mono);
+  font-size: 22px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+.index-summary .was {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--faint);
+  text-decoration: line-through;
+}
+
+/* ------------------------------------------------------------------- бейджи */
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 19px;
+  padding: 0 7px;
+  border-radius: 3px;
+  font-size: 11px;
+  background: var(--surface-2);
+  color: var(--muted);
+  border: 1px solid var(--line);
+  white-space: nowrap;
+}
+.badge-brand {
+  background: var(--brand-soft);
+  color: var(--brand-hover);
+  border-color: rgba(67, 176, 42, 0.3);
+}
+.badge-risk {
+  background: #fdeeee;
+  color: #b53232;
+  border-color: #f5cfcf;
+}
+.badge-act {
+  background: #eef1f8;
+  color: #3a4a7a;
+  border-color: #d6ddf0;
+}
+.badge-edited {
+  background: #fff6e6;
+  color: #8a5a00;
+  border-color: #f0dcb8;
+}
+
+/* --------------------------------------------------------------- карточки */
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 16px 18px;
+}
+.cards {
+  display: grid;
+  gap: 12px;
+}
+.cards.two {
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+}
+
+table.grid {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+table.grid th {
+  text-align: left;
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--muted);
+  font-weight: 600;
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface-2);
+}
+table.grid td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line-soft);
+  font-size: 13px;
+  vertical-align: top;
+}
+table.grid tr:last-child td {
+  border-bottom: none;
+}
+td.num,
+.num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ------------------------------------------------------------- досье НПА */
+
+.timeline {
+  position: relative;
+  padding-left: 20px;
+}
+.timeline::before {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 4px;
+  bottom: 4px;
+  width: 1px;
+  background: var(--line);
+}
+.tl-item {
+  position: relative;
+  padding: 0 0 16px;
+}
+.tl-item::before {
+  content: "";
+  position: absolute;
+  left: -20px;
+  top: 5px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 2px solid var(--faint);
+}
+.tl-item[data-kind="stage_change"]::before {
+  border-color: var(--brand);
+  background: var(--brand);
+}
+.tl-date {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--muted);
+}
+.tl-text {
+  font-size: 13px;
+  margin: 2px 0 0;
+  line-height: 1.4;
+}
+
+/* Трекер стадий: четыре состояния, включая «неприменима» — российские акты
+   стадии пропускают, и линейная шкала без этого состояния лжёт. */
+.stages {
+  display: flex;
+  gap: 3px;
+  margin: 10px 0 4px;
+}
+.stage {
+  flex: 1;
+  min-width: 0;
+  padding: 7px 8px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  font-size: 11px;
+  line-height: 1.25;
+  color: var(--faint);
+}
+.stage[data-state="done"] {
+  background: var(--brand-soft);
+  border-color: rgba(67, 176, 42, 0.35);
+  color: var(--brand-hover);
+  font-weight: 500;
+}
+.stage[data-state="current"] {
+  background: var(--ink-2);
+  border-color: var(--ink-2);
+  color: #fff;
+  font-weight: 600;
+}
+.stage[data-state="skipped"] {
+  opacity: 0.5;
+  border-style: dashed;
+}
+.stage-mark {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  display: block;
+  opacity: 0.8;
+}
+
+/* ------------------------------------------------------------------- прочее */
+
+.empty {
+  padding: 44px 20px;
+  text-align: center;
+  color: var(--muted);
+}
+.empty h3 {
+  font-family: var(--font-head);
+  margin: 0 0 6px;
+  font-size: 15px;
+  color: var(--ink);
+}
+.empty p {
+  margin: 0;
+  font-size: 13px;
+}
+
+.toast-host {
+  position: fixed;
+  left: 50%;
+  bottom: 22px;
+  transform: translateX(-50%);
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
+}
+.toast {
+  background: var(--ink);
+  color: #fff;
+  border-radius: var(--radius);
+  padding: 10px 14px;
+  font-size: 13px;
+  box-shadow: var(--shadow-lg);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.toast button {
+  background: none;
+  border: none;
+  color: var(--brand);
+  font-weight: 600;
+  cursor: pointer;
+  font-size: 13px;
+  padding: 0;
+}
+
+.spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--line);
+  border-top-color: var(--ink-2);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  display: inline-block;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation-duration: 2s;
+  }
+}
+
+.kbd {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-bottom-width: 2px;
+  border-radius: 3px;
+  padding: 1px 5px;
+  color: var(--muted);
+}
+
+dialog {
+  border: none;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+  padding: 0;
+  max-width: 560px;
+  width: calc(100% - 32px);
+}
+dialog::backdrop {
+  background: rgba(35, 31, 32, 0.34);
+}
+.dialog-head {
+  padding: 16px 20px 12px;
+  border-bottom: 1px solid var(--line);
+}
+.dialog-head h2 {
+  font-family: var(--font-head);
+  margin: 0;
+  font-size: 16px;
+}
+.dialog-body {
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+.dialog-foot {
+  padding: 12px 20px;
+  border-top: 1px solid var(--line);
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.form-row {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.form-row label {
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.form-row input,
+.form-row select,
+.form-row textarea {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 7px 9px;
+  font-size: 13px;
+  background: var(--surface);
+}
+.form-row textarea {
+  min-height: 110px;
+  resize: vertical;
+  font-family: inherit;
+}

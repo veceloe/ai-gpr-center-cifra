@@ -17,3 +17,7 @@ backend/.env
 backend/.pytest_cache/
 backend/.ruff_cache/
 *.session
+
+backend/static/
+frontend/node_modules/
+frontend/dist/
