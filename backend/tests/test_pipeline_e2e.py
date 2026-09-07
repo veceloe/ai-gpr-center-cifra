@@ -936,3 +936,65 @@ async def test_user_edits_survive_reprocessing(
     assert item.current_assessment.scores["К1"] == 0
     # Машинная версия не удалена — пользователь может сравнить.
     assert any(s.author == Author.AI for s in item.summaries)
+
+
+@pytest.mark.asyncio
+async def test_act_inherits_assessment_of_linked_item(
+    session: AsyncSession, item: Item, profile: CompanyProfile
+) -> None:
+    """Досье получает собственную оценку — задача T062, FR-035.
+
+    Раньше оценка писалась только на `item_id`, а карточка досье читает
+    `assessments` по `act_id`. Из-за этого каждое досье показывало пустую
+    категорию и пустой график динамики, хотя связанные материалы были оценены.
+    """
+    await process_item(session, item, StubProvider(), profile)
+    await session.commit()
+
+    act = await session.scalar(select(Act).where(Act.act_identifier == "ФЗ № 243-ФЗ"))
+    assert act is not None
+
+    act_assessment = await session.scalar(
+        select(Assessment).where(Assessment.act_id == act.id, Assessment.is_current.is_(True))
+    )
+    item_assessment = await session.scalar(
+        select(Assessment).where(Assessment.item_id == item.id, Assessment.is_current.is_(True))
+    )
+    assert act_assessment is not None
+    assert item_assessment is not None
+    assert act_assessment.index_value == item_assessment.index_value
+    assert act_assessment.final_category == item_assessment.final_category
+    assert act_assessment.scores == item_assessment.scores
+
+
+@pytest.mark.asyncio
+async def test_second_publication_moves_previous_act_assessment_into_history(
+    session: AsyncSession, item: Item, source, profile: CompanyProfile
+) -> None:
+    """Прежняя оценка досье сохраняется — из неё строится динамика влияния."""
+    await process_item(session, item, StubProvider(), profile)
+    await session.commit()
+
+    second = Item(
+        source_id=source.id,
+        url="https://example.test/fz-243-again",
+        title="ФЗ № 243-ФЗ, новая публикация",
+        raw_text=item_text(),
+        content_hash="fz-243-second",
+        item_type=ItemType.ACT,
+        published_at=item.published_at,
+    )
+    session.add(second)
+    await session.flush()
+    await process_item(session, second, StubProvider(), profile)
+    await session.commit()
+
+    act = await session.scalar(select(Act).where(Act.act_identifier == "ФЗ № 243-ФЗ"))
+    assert act is not None
+    history = list(
+        await session.scalars(
+            select(Assessment).where(Assessment.act_id == act.id).order_by(Assessment.id)
+        )
+    )
+    assert len(history) == 2, "вторая публикация должна добавить точку в историю, а не заменить её"
+    assert [a.is_current for a in history] == [False, True]
