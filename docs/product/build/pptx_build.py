@@ -46,7 +46,7 @@ MID_GREEN = RGBColor(0xA8, 0xDC, 0x98)
 prs = Presentation()
 prs.slide_width, prs.slide_height = W, H
 BLANK = prs.slide_layouts[6]
-TOTAL = 10
+TOTAL = 12
 _num = 0
 
 
@@ -228,7 +228,30 @@ text(s, Inches(8.0), Inches(2.5), Inches(4.2), Inches(2.6),
       ("что из этого касается нашей компании", {"color": BRAND, "bold": True}),
       (".", {"color": MUTED_D})], size=21, line=1.42)
 
-# ============================================================ 03 · Решение
+# ============================================================ 03 · Задача
+s = slide()
+text(s, M, Inches(1.15), Inches(11.7), Inches(0.3), "Что требовалось сделать",
+     size=11, bold=True, color=BRAND)
+text(s, M, Inches(1.6), Inches(11.5), Inches(1.3),
+     "Оценивать каждый материал\nс точки зрения одной компании",
+     size=42, bold=True, color=TEXT_D, line=1.12)
+rows = [
+    ("Собирать", "СМИ, порталы регуляторов, СОЗД, телеграм-каналы — без ручного обхода"),
+    ("Понимать", "саммари, где каждое утверждение подтверждено цитатой из оригинала"),
+    ("Оценивать", "по методике заказчика: К1–К6 для НПА, Н1–Н4 для новостей"),
+    ("Вести", "НПА как долгоживущее досье со стадиями и историей влияния"),
+    ("Отдавать", "ленту по влиянию и дайджест под конкретного получателя"),
+]
+for i, (verb, what) in enumerate(rows):
+    y = Inches(3.55) + Inches(0.62) * i
+    text(s, M, y, Inches(1.9), Inches(0.32), verb, size=19, bold=True, color=BRAND)
+    text(s, M + Inches(2.0), y + Inches(0.04), Inches(9.5), Inches(0.32), what,
+         size=16, color=MUTED_D)
+text(s, M, Inches(6.85), Inches(11.5), Inches(0.4),
+     "Границы работы заданы заранее: без авторизации, промышленной нагрузки и информационной безопасности.",
+     size=13, color=MUTED_D)
+
+# ============================================================ 04 · Решение
 s = slide()
 text(s, M, Inches(1.15), Inches(11.7), Inches(1.4),
      [("Модель выставляет баллы.\n", {"color": TEXT_D}),
@@ -365,29 +388,77 @@ text(s, Inches(9.15), Inches(4.85), Inches(3.2), Inches(0.3),
 text(s, Inches(9.15), Inches(5.23), Inches(3.2), Inches(0.7),
      "Обработка не успевает за сбором. Показываем срез.", size=13, color=MUTED_D, line=1.45)
 
-# ============================================================ 08 · Команда
+# ============================================================ 09 · Планы
 s = slide()
-text(s, M, Inches(1.15), Inches(11.7), Inches(0.3), "Команда",
+text(s, M, Inches(1.15), Inches(11.7), Inches(0.3), "Что дальше",
      size=11, bold=True, color=BRAND)
-text(s, M, Inches(1.6), Inches(11.5), Inches(0.7), "Кто делал и где посмотреть",
+text(s, M, Inches(1.6), Inches(11.5), Inches(0.7), "Три шага после хакатона",
      size=42, bold=True, color=TEXT_D)
-team = [("Левочкин Егор", "@veceloe", "продукт, парсинг, фронтенд"),
-        ("Головаш Денис", "@denizzzz_ka", "весь слой работы с моделью"),
-        ("Артемьев Иван", "@s3drmn", "бэкенд, конвейер, развёртывание")]
-for i, (name, tg, role) in enumerate(team):
-    y = Inches(3.0) + Inches(1.05) * i
-    text(s, M, y, Inches(3.6), Inches(0.34), name, size=21, bold=True, color=TEXT_D)
-    text(s, M, y + Inches(0.42), Inches(6.4), Inches(0.3), f"{role}",
-         size=14, color=MUTED_D)
-panel(s, Inches(8.2), Inches(2.9), Inches(4.4), Inches(3.3), PANEL_2)
-s.shapes.add_picture(str(ASSETS / "qr-demo.png"), Inches(9.35), Inches(3.2),
-                     Inches(2.1), Inches(2.1))
-text(s, Inches(8.5), Inches(5.5), Inches(3.8), Inches(0.3), "185.56.162.154",
-     size=15, bold=True, color=TEXT_D, align=PP_ALIGN.CENTER)
-text(s, Inches(8.5), Inches(5.82), Inches(3.8), Inches(0.3), "лента, досье и дайджест на живых данных",
-     size=11.5, color=MUTED_D, align=PP_ALIGN.CENTER)
-text(s, M, Inches(6.4), Inches(7.0), Inches(0.3),
-     "github.com/veceloe/ai-gpr-center-cifra", size=14, color=MUTED_D)
+steps = [
+    ("Ближайшее", "Разметить с заказчиком 50 материалов, включая нерелевантные. Без "
+     "отрицательных примеров точность фильтрации измерить нельзя — сейчас это "
+     "главный пробел, а не догадка."),
+    ("Затем", "Починить занижение новостной схемы: few-shot из карточек реестра "
+     "с непрямой связью. Отсюда единственный провал важного, и чинится он в одном месте."),
+    ("Пилот", "Второй профиль компании — «Триколор» назывался заказчиком как кандидат. "
+     "Система масштабируется сменой конфига, а не переписыванием: методика уже вынесена "
+     "в отдельный файл."),
+]
+for i, (when, what) in enumerate(steps):
+    y = Inches(2.9) + Inches(1.25) * i
+    panel(s, M, y, Inches(11.7), Inches(1.05), PANEL if i % 2 == 0 else PANEL_2)
+    text(s, M + Inches(0.42), y + Inches(0.24), Inches(2.0), Inches(0.3), when,
+         size=15, bold=True, color=BRAND)
+    text(s, M + Inches(2.5), y + Inches(0.2), Inches(8.8), Inches(0.7), what,
+         size=14, color=MUTED_D, line=1.45)
+text(s, M, Inches(6.85), Inches(11.5), Inches(0.4),
+     "Открытых задач в спецификации: 17. Открытых вопросов к заказчику: 16, три помечены первоочередными.",
+     size=13, color=MUTED_D)
+
+# ============================================================ 10 · Команда
+s = slide()
+text(s, M, Inches(0.95), Inches(11.7), Inches(0.3), "Команда",
+     size=11, bold=True, color=BRAND)
+text(s, M, Inches(1.35), Inches(11.5), Inches(0.6), "Кто что сделал",
+     size=40, bold=True, color=TEXT_D)
+
+team = [
+    ("Левочкин Егор", "AI Product",
+     "Спецификация, методика оценки, ADR, исследование рынка, работа с заказчиком.\n"
+     "Инженерно: фронтенд целиком, формула индекса, заземление, стенд замера качества, развёртывание.",
+     "36 коммитов"),
+    ("Головаш Денис", "AI Engineer",
+     "Слой работы с моделью: провайдер с резервным и кешем, контракты ответов, тесты заземления.\n"
+     "Связывание материалов с досье НПА, канонические идентификаторы актов, эскалация по реестру.",
+     "10 коммитов"),
+    ("Артемьев Иван", "AI Engineer",
+     "Сбор с живых источников, тип материала на источнике, кластеризация дублей.\n"
+     "Хранилище и контейнеризация: перевод на SQLite, docker compose, окружение.",
+     "5 коммитов"),
+]
+for i, (name, role, zone, n) in enumerate(team):
+    y = Inches(2.25) + Inches(1.34) * i
+    panel(s, M, y, Inches(11.7), Inches(1.18), PANEL if i % 2 == 0 else PANEL_2)
+    text(s, M + Inches(0.42), y + Inches(0.22), Inches(3.2), Inches(0.3), name,
+         size=18, bold=True, color=TEXT_D)
+    text(s, M + Inches(0.42), y + Inches(0.6), Inches(3.2), Inches(0.28), role,
+         size=13, color=BRAND)
+    text(s, M + Inches(3.9), y + Inches(0.2), Inches(6.3), Inches(0.85), zone,
+         size=12.5, color=MUTED_D, line=1.45)
+    text(s, M + Inches(10.4), y + Inches(0.22), Inches(1.1), Inches(0.28), n,
+         size=12.5, color=MUTED_D, align=PP_ALIGN.RIGHT)
+
+text(s, M, Inches(6.35), Inches(8.4), Inches(0.75),
+     [("Фактическая доля в коде: ", {"color": TEXT_D, "bold": True}),
+      ("backend — Левочкин 65 %, Артемьев 19 %, Головаш 16 %; фронтенд и спецификация — "
+       "Левочкин. Считано по добавленным строкам в истории репозитория.",
+       {"color": MUTED_D})], size=13, line=1.45)
+s.shapes.add_picture(str(ASSETS / "qr-demo.png"), W - M - Inches(1.25), Inches(6.05),
+                     Inches(1.25), Inches(1.25))
+text(s, W - M - Inches(4.0), Inches(6.35), Inches(2.6), Inches(0.3), "185.56.162.154",
+     size=13, bold=True, color=TEXT_D, align=PP_ALIGN.RIGHT)
+text(s, W - M - Inches(4.0), Inches(6.68), Inches(2.6), Inches(0.3),
+     "github.com/veceloe/ai-gpr-center-cifra", size=10.5, color=MUTED_D, align=PP_ALIGN.RIGHT)
 
 # ============================================================ 09 · Приложение · оценка
 s = slide(CANVAS)
