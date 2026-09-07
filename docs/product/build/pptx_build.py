@@ -27,6 +27,11 @@ FONT = "Inter Tight"
 
 # --- палитра взята из styles/app.css продукта ---------------------------------
 INK = RGBColor(0x23, 0x1F, 0x20)
+NIGHT = RGBColor(0x10, 0x12, 0x14)      # основной фон
+PANEL = RGBColor(0x1B, 0x1F, 0x24)      # блок бенто
+PANEL_2 = RGBColor(0x23, 0x28, 0x2E)
+TEXT_D = RGBColor(0xF2, 0xF4, 0xF3)     # текст на тёмном
+MUTED_D = RGBColor(0x8B, 0x94, 0x9E)
 BRAND = RGBColor(0x43, 0xB0, 0x2A)
 BRAND_DARK = RGBColor(0x37, 0x91, 0x23)
 BRAND_SOFT = RGBColor(0xEE, 0xF8, 0xEA)
@@ -45,7 +50,7 @@ TOTAL = 10
 _num = 0
 
 
-def slide(bg=CANVAS):
+def slide(bg=NIGHT):
     s = prs.slides.add_slide(BLANK)
     r = s.shapes.add_shape(1, 0, 0, W, H)
     r.fill.solid()
@@ -183,214 +188,239 @@ def legend(s, x, y, entries, size=12):
         off += Inches(3.15)
 
 
+
+def panel(s, x, y, w, h, fill=PANEL):
+    """Блок бенто-сетки: разные размеры на одном слайде, без рамок."""
+    r = s.shapes.add_shape(5, x, y, w, h)
+    r.fill.solid()
+    r.fill.fore_color.rgb = fill
+    r.line.fill.background()
+    r.shadow.inherit = False
+    r.adjustments[0] = 0.045
+    return r
+
+
 # ============================================================ 01 · Титул
-s = slide(BRAND)
-text(s, M, Inches(2.0), Inches(11.7), Inches(0.3), "ITMO AI Product Hack · кейс ООО «Цифра»",
-     size=12, bold=True, color=SURFACE, caps=True, spacing=1.6)
-text(s, M, Inches(2.6), Inches(11.7), Inches(1.7), "Интеллектуальный центр\nPR/GR-мониторинга",
-     size=50, bold=True, color=SURFACE, line=1.06)
-text(s, M, Inches(4.72), Inches(8.4), Inches(0.5),
-     "Лента, отсортированная по влиянию на компанию, а не по дате публикации",
-     size=17, color=RGBColor(0xE4, 0xF5, 0xDE))
-text(s, M, Inches(5.9), Inches(8.4), Inches(0.4),
-     "Левочкин Егор · Головаш Денис · Артемьев Иван",
-     size=13, color=RGBColor(0xD3, 0xEF, 0xC9))
-s.shapes.add_picture(str(ASSETS / "qr-demo.png"), W - M - Inches(1.55), Inches(4.5),
-                     Inches(1.55), Inches(1.55))
-text(s, W - M - Inches(3.0), Inches(6.18), Inches(3.0), Inches(0.3), "185.56.162.154",
-     size=11.5, color=SURFACE, align=PP_ALIGN.RIGHT)
+s = slide()
+text(s, M, Inches(2.3), Inches(11.7), Inches(0.3), "ITMO AI PRODUCT HACK · КЕЙС ООО «ЦИФРА»",
+     size=11.5, bold=True, color=MUTED_D, spacing=2.0)
+text(s, M, Inches(2.95), Inches(11.7), Inches(2.4),
+     [("Мониторинг,\nкоторый отвечает\nна вопрос ", {"color": TEXT_D}),
+      ("«и что?»", {"color": BRAND})],
+     size=62, bold=True, line=1.05)
+text(s, M, Inches(5.95), Inches(7.6), Inches(0.5),
+     "Интеллектуальный центр PR/GR-мониторинга для GS Labs",
+     size=17, color=MUTED_D)
+s.shapes.add_picture(str(ASSETS / "qr-demo.png"), W - M - Inches(1.5), Inches(5.2),
+                     Inches(1.5), Inches(1.5))
+text(s, W - M - Inches(3.4), Inches(6.82), Inches(3.4), Inches(0.3), "185.56.162.154",
+     size=12, bold=True, color=TEXT_D, align=PP_ALIGN.RIGHT)
 
 # ============================================================ 02 · Проблема
-# Ни карточек, ни списка: одно утверждение и одно число рядом.
+# Одно огромное число и одна фраза. Больше на слайде ничего нет.
 s = slide()
-bar(s, M, Inches(1.6), Inches(2.5))
-text(s, M + Inches(0.42), Inches(1.55), Inches(7.4), Inches(2.6),
-     "Три-четыре часа в день\nуходит на то, чтобы\nпрочитать всё вручную",
-     size=40, bold=True, line=1.14)
-text(s, M + Inches(0.42), Inches(4.55), Inches(7.0), Inches(1.2),
-     "И дело не в объёме. Агрегаторы отвечают на вопрос «что интересного произошло». "
-     "GR-специалисту нужен другой ответ: что из этого касается нашей компании.",
-     size=15, color=MUTED, line=1.45)
-big(s, Inches(9.1), Inches(1.62), Inches(3.5), "630", size=88, color=BRAND_DARK)
-label(s, Inches(9.1), Inches(3.35), Inches(3.5), "часов в год на специалиста")
-text(s, Inches(9.1), Inches(3.75), Inches(3.4), Inches(1.0),
-     "Столько уходит на ручной мониторинг. Целевой ориентир заказчика — "
-     "разбор суточной повестки за 10–15 минут.", size=13, color=MUTED, line=1.45)
-foot(s, "docs/business-case.md · расчёт согласован с заказчиком")
+text(s, M, Inches(1.5), Inches(7.2), Inches(0.3), "ЗАЧЕМ ЭТО ВООБЩЕ",
+     size=11, bold=True, color=BRAND, spacing=2.0)
+text(s, M, Inches(2.0), Inches(6.6), Inches(2.6),
+     "630", size=150, bold=True, color=TEXT_D, line=0.94)
+text(s, M, Inches(4.3), Inches(6.2), Inches(0.4),
+     "часов в год у одного специалиста", size=20, color=BRAND)
+text(s, M, Inches(4.95), Inches(5.9), Inches(1.4),
+     "Столько уходит на ручное чтение лент, порталов регуляторов и телеграм-каналов. "
+     "Ориентир заказчика — разбирать суточную повестку за 10–15 минут.",
+     size=14.5, color=MUTED_D, line=1.5)
+panel(s, Inches(7.6), Inches(2.0), Inches(5.0), Inches(3.9))
+text(s, Inches(8.0), Inches(2.5), Inches(4.2), Inches(2.6),
+     [("Агрегаторы отвечают, ", {"color": MUTED_D}),
+      ("что интересного произошло", {"color": TEXT_D, "bold": True}),
+      (".\n\nGR-специалисту нужен другой ответ: ", {"color": MUTED_D}),
+      ("что из этого касается нашей компании", {"color": BRAND, "bold": True}),
+      (".", {"color": MUTED_D})], size=21, line=1.42)
+foot(s, "docs/business-case.md · расчёт согласован с заказчиком", MUTED_D)
 
 # ============================================================ 03 · Решение
 s = slide()
-bar(s, M, Inches(1.5), Inches(1.5))
-text(s, M + Inches(0.42), Inches(1.45), Inches(11.0), Inches(1.6),
-     "Модель выставляет баллы.\nИндекс считает код.", size=42, bold=True, line=1.14)
-
-# Схема границы: что отдаёт модель и что из этого делает код.
-box(s, M, Inches(3.5), Inches(4.6), Inches(1.85), SURFACE, BRAND, Pt(1.5))
-label(s, M + Inches(0.32), Inches(3.75), Inches(4.0), "Модель", BRAND_DARK)
-text(s, M + Inches(0.32), Inches(4.1), Inches(4.0), Inches(1.1),
-     "К1 · 3    К2 · 2    К3 · 3\nК4 · 0    К5 · 0    К6 · 3\n\nи обоснование к каждому баллу",
-     size=15, color=INK, line=1.5)
-arrow(s, M + Inches(4.85), Inches(4.34), Inches(0.85), BRAND_DARK)
-box(s, M + Inches(6.0), Inches(3.5), Inches(4.9), Inches(1.85), INK, INK, Pt(1.5))
-label(s, M + Inches(6.32), Inches(3.75), Inches(4.2), "Код", RGBColor(0x9A, 0xE0, 0x88))
-text(s, M + Inches(6.32), Inches(4.08), Inches(4.3), Inches(1.2),
-     [("индекс 65,0", {"bold": True, "color": SURFACE, "size": 17}),
-      ("  →  ", {"color": FAINT, "size": 17}),
-      ("категория «Среднее»", {"bold": True, "color": SURFACE, "size": 17}),
-      ("\nфлаг эскалации поднимает до «Высокого»",
-       {"color": RGBColor(0xC8, 0xD4, 0xC8), "size": 13})], line=1.5)
-text(s, M, Inches(5.75), Inches(11.0), Inches(0.7),
+text(s, M, Inches(1.15), Inches(11.7), Inches(1.4),
+     [("Модель выставляет баллы.\n", {"color": TEXT_D}),
+      ("Индекс считает код.", {"color": BRAND})],
+     size=52, bold=True, line=1.1)
+panel(s, M, Inches(3.55), Inches(5.1), Inches(2.0))
+text(s, M + Inches(0.4), Inches(3.85), Inches(4.4), Inches(0.3), "МОДЕЛЬ ОТДАЁТ",
+     size=10.5, bold=True, color=MUTED_D, spacing=1.8)
+text(s, M + Inches(0.4), Inches(4.25), Inches(4.4), Inches(1.1),
+     [("К1·3   К2·2   К3·3   К4·0   К5·0   К6·3", {"color": TEXT_D, "size": 19, "bold": True}),
+      ("\nи обоснование к каждому баллу", {"color": MUTED_D, "size": 14})], line=1.55)
+arrow(s, M + Inches(5.35), Inches(4.45), Inches(0.75), BRAND)
+panel(s, M + Inches(6.5), Inches(3.55), Inches(5.2), Inches(2.0), PANEL_2)
+text(s, M + Inches(6.9), Inches(3.85), Inches(4.5), Inches(0.3), "КОД ВЫЧИСЛЯЕТ",
+     size=10.5, bold=True, color=BRAND, spacing=1.8)
+text(s, M + Inches(6.9), Inches(4.25), Inches(4.5), Inches(1.1),
+     [("65,0", {"color": TEXT_D, "size": 26, "bold": True}),
+      ("  →  ", {"color": MUTED_D, "size": 20}),
+      ("Среднее", {"color": TEXT_D, "size": 20, "bold": True}),
+      ("\nфлаг эскалации поднимает до «Высокого»", {"color": MUTED_D, "size": 14})],
+     line=1.5)
+text(s, M, Inches(5.95), Inches(11.5), Inches(0.7),
      [("В контракте ответа модели полей «индекс» и «категория» нет вовсе. ",
-       {"bold": True, "color": INK}),
+       {"color": TEXT_D, "bold": True}),
       ("Она физически не может их вернуть — поэтому оценку можно проверить и поправить.",
-       {"color": MUTED})], size=14.5, line=1.45)
-foot(s, "ADR-0003 · backend/config/scoring.yaml")
+       {"color": MUTED_D})], size=15, line=1.45)
+foot(s, "ADR-0003 · backend/config/scoring.yaml", MUTED_D)
 
 # ============================================================ 04 · Лента
-s = slide()
-label(s, M, Inches(0.62), Inches(6.0), "Продукт", BRAND_DARK)
-headline(s, "Сверху то, что важнее для компании, а не то, что свежее", size=28)
-lead(s, Inches(1.52),
-     "Цветом отмечены только два верхних уровня серьёзности: сортировка уже сделала главную работу.",
-     size=12.5)
-shot(s, "shot_feed.jpg")
-foot(s, "185.56.162.154")
+s = slide(CANVAS)
+text(s, M, Inches(0.62), Inches(11.7), Inches(0.3), "ВОТ КАК ЭТО ВЫГЛЯДИТ",
+     size=11, bold=True, color=BRAND_DARK, spacing=2.0)
+text(s, M, Inches(1.0), Inches(11.7), Inches(0.5),
+     "Сверху то, что важнее для компании, а не то, что свежее", size=30, bold=True, color=INK)
+lead(s, Inches(1.6), "Цветом отмечены только два верхних уровня серьёзности — сортировка "
+     "уже сделала главную работу.", size=13)
+shot(s, "shot_feed.jpg", Inches(2.0))
+foot(s, "живой стенд: 185.56.162.154")
 
-# ============================================================ 05 · Разбор оценки
+# ============================================================ 05 · Сколько стоит
 s = slide()
-label(s, M, Inches(0.62), Inches(6.0), "Продукт", BRAND_DARK)
-headline(s, "Оценку видно целиком — и её можно поправить", size=28)
-lead(s, Inches(1.52),
-     "Слева цитата из оригинала под каждым утверждением. Справа шесть критериев: балл, "
-     "вклад в индекс, обоснование. Меняете балл — индекс пересчитывается сразу.", size=12.5)
-shot(s, "shot_breakdown.jpg")
-foot(s, "FR-024 · FR-081")
+text(s, M, Inches(1.15), Inches(11.7), Inches(0.3), "СКОЛЬКО СТОИТ",
+     size=11, bold=True, color=BRAND, spacing=2.0)
+text(s, M, Inches(1.6), Inches(11.5), Inches(1.2),
+     "Год работы модели дешевле,\nчем один пропущенный документ",
+     size=42, bold=True, color=TEXT_D, line=1.1)
 
-# ============================================================ 06 · Досье
-s = slide()
-label(s, M, Inches(0.62), Inches(6.0), "Продукт", BRAND_DARK)
-headline(s, "НПА живёт отдельно: стадии, хронология, динамика влияния", size=28)
-lead(s, Inches(1.52),
-     "Стадия «Обсуждение» помечена неприменимой, а не непройденной: российские акты стадии "
-     "пропускают, и линейная шкала без этого состояния лжёт.", size=12.5)
-shot(s, "shot_act.jpg")
-foot(s, "FR-032 · FR-035")
-
-# ============================================================ 07 · Сколько стоит
-s = slide()
-bar(s, M, Inches(1.5), Inches(0.9))
-text(s, M + Inches(0.42), Inches(1.45), Inches(11.0), Inches(1.0),
-     "Обработка потока стоит дешевле,\nчем один пропущенный документ", size=34, bold=True, line=1.16)
-
-# Полосы в честном масштабе: 2 100 против 500 000 — это 0,42 %, и малая полоса
-# почти не видна. Это и есть сообщение, поэтому она не увеличена «для наглядности».
-SCALE = Inches(11.0) / 500000
-text(s, M, Inches(3.5), Inches(6.0), Inches(0.3), "Год работы модели на потоке 150 материалов в сутки",
-     size=13, color=MUTED)
-r = s.shapes.add_shape(1, M, Inches(3.85), max(int(2100 * SCALE), Inches(0.04)), Inches(0.34))
+panel(s, M, Inches(3.9), Inches(11.7), Inches(2.15))
+text(s, M + Inches(0.45), Inches(4.2), Inches(6.0), Inches(0.28),
+     "ГОД ОБРАБОТКИ ПОТОКА В 150 МАТЕРИАЛОВ В СУТКИ",
+     size=10.5, bold=True, color=MUTED_D, spacing=1.6)
+SCALE = Inches(9.6) / 500000
+r = s.shapes.add_shape(1, M + Inches(0.45), Inches(4.58), max(int(2100 * SCALE), Inches(0.035)), Inches(0.3))
 r.fill.solid(); r.fill.fore_color.rgb = BRAND
 r.line.fill.background(); r.shadow.inherit = False
-text(s, M + Inches(0.18), Inches(3.83), Inches(4.0), Inches(0.35), "≈ 2 100 ₽",
-     size=17, bold=True, color=BRAND_DARK)
-
-text(s, M, Inches(4.75), Inches(8.0), Inches(0.3),
-     "Один штраф по ФЗ № 295-ФЗ для операторов цифровых платформ, верхняя граница",
-     size=13, color=MUTED)
-r = s.shapes.add_shape(1, M, Inches(5.1), Inches(11.0), Inches(0.34))
+text(s, M + Inches(0.62), Inches(4.55), Inches(4.0), Inches(0.34), "2 100 ₽",
+     size=18, bold=True, color=BRAND)
+text(s, M + Inches(0.45), Inches(5.12), Inches(8.0), Inches(0.28),
+     "ОДИН ШТРАФ ПО ФЗ № 295-ФЗ, ВЕРХНЯЯ ГРАНИЦА",
+     size=10.5, bold=True, color=MUTED_D, spacing=1.6)
+r = s.shapes.add_shape(1, M + Inches(0.45), Inches(5.5), Inches(9.6), Inches(0.3))
 r.fill.solid(); r.fill.fore_color.rgb = RISK
 r.line.fill.background(); r.shadow.inherit = False
-text(s, M + Inches(0.18), Inches(5.08), Inches(4.0), Inches(0.35), "500 000 ₽",
-     size=17, bold=True, color=SURFACE)
+text(s, M + Inches(0.62), Inches(5.47), Inches(4.0), Inches(0.34), "500 000 ₽",
+     size=18, bold=True, color=TEXT_D)
 
-text(s, M, Inches(5.75), Inches(11.7), Inches(0.7),
-     [("Полосы в одном масштабе. ", {"bold": True, "color": INK}),
-      ("Верхняя — годовая стоимость обработки: четыре копейки за материал. "
-       "Одного пропущенного документа хватает, чтобы перекрыть двести лет её работы.",
-       {"color": MUTED})], size=14.5, line=1.45)
-text(s, M, Inches(6.55), Inches(11.7), Inches(0.3),
-     "Пересчитано по курсу ЦБ на 05.09.2026 — 86,59 ₽ за доллар.",
-     size=11.5, color=FAINT)
-foot(s, "docs/business-case.md · замер стоимости на реальном материале")
-
-# ============================================================ 08 · Насколько точно
-s = slide()
-bar(s, M, Inches(1.5), Inches(0.62))
-text(s, M + Inches(0.42), Inches(1.45), Inches(11.0), Inches(0.7),
-     "Проверено на реестре самого заказчика", size=34, bold=True)
-text(s, M + Inches(0.42), Inches(2.15), Inches(10.6), Inches(0.4),
-     "Сорок две карточки, баллы в них проставлены человеком. Одна клетка — одна карточка.",
-     size=14, color=MUTED)
-
-waffle(s, M, Inches(2.85), [(BRAND, 18), (MID_GREEN, 20), (RISK, 4)])
-legend(s, M, Inches(4.7), [
-    (BRAND, "18 — категория совпала точно"),
-    (MID_GREEN, "20 — разошлась на одну ступень"),
-    (RISK, "4 — разошлась сильнее"),
-])
-
-big(s, Inches(8.8), Inches(2.8), Inches(3.8), "42 / 42", size=46, color=BRAND_DARK)
-label(s, Inches(8.8), Inches(3.72), Inches(3.8), "формула сходится точно")
-text(s, Inches(8.8), Inches(4.08), Inches(3.7), Inches(0.9),
-     "Отдельная проверка: получив экспертные баллы, код выдаёт тот же индекс "
-     "и ту же категорию, что в Excel заказчика. Включая эскалацию.",
-     size=13, color=MUTED, line=1.45)
-
-text(s, M, Inches(5.5), Inches(11.7), Inches(0.9),
-     [("Провалов важного в нижние категории: один при цели ноль. ",
-       {"bold": True, "color": INK}),
-      ("Это ключевое условие заказчика, и оно важнее общей точности: пропущенное "
-       "регуляторное изменение стоит дороже десятка лишних материалов в ленте. "
-       "Заземление отдельно: 8,2 % утверждений отбраковала вторая ступень — цитата "
-       "в оригинале есть, но утверждения не подтверждает.", {"color": MUTED})],
+text(s, M, Inches(6.35), Inches(11.5), Inches(0.6),
+     [("Полосы в одном масштабе, зелёная не увеличена. ", {"color": TEXT_D, "bold": True}),
+      ("Четыре копейки за материал. Одного пропуска хватает, чтобы перекрыть "
+       "двести лет работы модели. Курс ЦБ на 05.09.2026.", {"color": MUTED_D})],
      size=14, line=1.45)
-foot(s, "evals/results.md · python -m src.cli evaluate · verify-formula")
+foot(s, "docs/business-case.md", MUTED_D)
 
-# ============================================================ 09 · Границы
+# ============================================================ 06 · Насколько точно
 s = slide()
-label(s, M, Inches(0.62), Inches(6.0), "Честно", RISK)
-text(s, M, Inches(1.0), Inches(11.7), Inches(0.8), "Чего мы измерить не смогли",
-     size=34, bold=True)
-items = [
-    ("Точность фильтрации", RISK,
-     "В реестре заказчика нет ни одной нерелевантной карточки — сравнивать не с чем. "
-     "Заявленные восемьдесят процентов на таких данных неизмеримы в принципе. "
-     "Нужен размеченный набор с отрицательными примерами."),
-    ("Провалы важного: один при цели ноль", RISK,
-     "Единственный провал — следствие того, что новостная схема систематически занижает "
-     "оценку на материалах с непрямой связью с бизнесом."),
-    ("Живой сбор на стенде выключен", MUTED,
-     "Обработка не успевает за сбором, и необработанные материалы попадают в ленту "
-     "пустыми карточками. Показываем подготовленный срез."),
-]
-for i, (t, c, d) in enumerate(items):
-    y = Inches(2.3) + Inches(1.42) * i
-    bar(s, M, y, Inches(1.05), c)
-    text(s, M + Inches(0.42), y - Inches(0.04), Inches(11.0), Inches(0.34), t,
-         size=19, bold=True)
-    text(s, M + Inches(0.42), y + Inches(0.42), Inches(10.6), Inches(0.7), d,
-         size=13.5, color=MUTED, line=1.45)
-foot(s, "docs/hypotheses.md · specs/…/open-questions.md")
+text(s, M, Inches(0.95), Inches(11.7), Inches(0.3), "НАСКОЛЬКО ТОЧНО",
+     size=11, bold=True, color=BRAND, spacing=2.0)
+text(s, M, Inches(1.4), Inches(11.5), Inches(0.6),
+     "Проверено на реестре самого заказчика", size=40, bold=True, color=TEXT_D)
 
-# ============================================================ 10 · Команда
-s = slide(BRAND)
-label(s, M, Inches(0.62), Inches(6.0), "Команда", RGBColor(0xD3, 0xEF, 0xC9))
-text(s, M, Inches(1.0), Inches(11.7), Inches(0.8), "Кто делал и где посмотреть",
-     size=34, bold=True, color=SURFACE)
+panel(s, M, Inches(2.45), Inches(7.5), Inches(3.5))
+text(s, M + Inches(0.42), Inches(2.75), Inches(6.6), Inches(0.28),
+     "42 КАРТОЧКИ · ОДНА КЛЕТКА — ОДНА КАРТОЧКА",
+     size=10.5, bold=True, color=MUTED_D, spacing=1.6)
+waffle(s, M + Inches(0.42), Inches(3.2), [(BRAND, 18), (MID_GREEN, 20), (RISK, 4)],
+       cell=Inches(0.36), gap=Inches(0.1), per_row=14)
+legend(s, M + Inches(0.42), Inches(5.35), [
+    (BRAND, "18 — точно"), (MID_GREEN, "20 — на ступень"), (RISK, "4 — дальше"),
+], size=12)
+
+panel(s, Inches(8.8), Inches(2.45), Inches(3.8), Inches(1.62), PANEL_2)
+text(s, Inches(9.15), Inches(2.7), Inches(3.2), Inches(0.8), "42 / 42",
+     size=40, bold=True, color=BRAND, line=1.0)
+text(s, Inches(9.15), Inches(3.42), Inches(3.2), Inches(0.5),
+     "формула сходится с Excel заказчика точно", size=12.5, color=MUTED_D, line=1.4)
+
+panel(s, Inches(8.8), Inches(4.33), Inches(3.8), Inches(1.62))
+text(s, Inches(9.15), Inches(4.58), Inches(3.2), Inches(0.8), "1",
+     size=40, bold=True, color=RISK, line=1.0)
+text(s, Inches(9.15), Inches(5.3), Inches(3.2), Inches(0.5),
+     "провал важного в нижние категории при цели ноль", size=12.5, color=MUTED_D, line=1.4)
+
+text(s, M, Inches(6.25), Inches(11.5), Inches(0.6),
+     [("Клетки — это модель. ", {"color": TEXT_D, "bold": True}),
+      ("Она сама выставила баллы. «42 из 42» — это про формулу: получив экспертные "
+       "баллы, код выдаёт тот же индекс. Путать эти два числа нельзя.",
+       {"color": MUTED_D})], size=14, line=1.45)
+foot(s, "evals/results.md · verify-formula", MUTED_D)
+
+# ============================================================ 07 · Границы
+s = slide()
+text(s, M, Inches(1.15), Inches(11.7), Inches(0.3), "ЧЕСТНО",
+     size=11, bold=True, color=RISK, spacing=2.0)
+text(s, M, Inches(1.6), Inches(11.5), Inches(0.7), "Чего мы измерить не смогли",
+     size=42, bold=True, color=TEXT_D)
+panel(s, M, Inches(2.95), Inches(7.5), Inches(3.15), PANEL_2)
+text(s, M + Inches(0.45), Inches(3.3), Inches(6.6), Inches(0.4),
+     "Точность фильтрации", size=24, bold=True, color=TEXT_D)
+text(s, M + Inches(0.45), Inches(3.9), Inches(6.6), Inches(1.9),
+     "В реестре заказчика нет ни одной нерелевантной карточки — сравнивать не с чем. "
+     "Заявленные 80 % на таких данных неизмеримы в принципе: тривиальный классификатор "
+     "«всё релевантно» даёт здесь 100 %. Нужен размеченный набор с отрицательными "
+     "примерами; это открытый вопрос к заказчику.",
+     size=14.5, color=MUTED_D, line=1.5)
+panel(s, Inches(8.8), Inches(2.95), Inches(3.8), Inches(1.5))
+text(s, Inches(9.15), Inches(3.2), Inches(3.2), Inches(0.3),
+     "Новостная схема занижает", size=15, bold=True, color=TEXT_D)
+text(s, Inches(9.15), Inches(3.58), Inches(3.2), Inches(0.7),
+     "Отсюда единственный провал важного.", size=13, color=MUTED_D, line=1.45)
+panel(s, Inches(8.8), Inches(4.6), Inches(3.8), Inches(1.5))
+text(s, Inches(9.15), Inches(4.85), Inches(3.2), Inches(0.3),
+     "Живой сбор выключен", size=15, bold=True, color=TEXT_D)
+text(s, Inches(9.15), Inches(5.23), Inches(3.2), Inches(0.7),
+     "Обработка не успевает за сбором. Показываем срез.", size=13, color=MUTED_D, line=1.45)
+foot(s, "docs/hypotheses.md · specs/…/open-questions.md", MUTED_D)
+
+# ============================================================ 08 · Команда
+s = slide()
+text(s, M, Inches(1.15), Inches(11.7), Inches(0.3), "КОМАНДА",
+     size=11, bold=True, color=BRAND, spacing=2.0)
+text(s, M, Inches(1.6), Inches(11.5), Inches(0.7), "Кто делал и где посмотреть",
+     size=42, bold=True, color=TEXT_D)
 team = [("Левочкин Егор", "@veceloe", "продукт, парсинг, фронтенд"),
         ("Головаш Денис", "@denizzzz_ka", "весь слой работы с моделью"),
         ("Артемьев Иван", "@s3drmn", "бэкенд, конвейер, развёртывание")]
 for i, (name, tg, role) in enumerate(team):
-    y = Inches(2.5) + Inches(1.0) * i
-    text(s, M, y, Inches(3.4), Inches(0.34), name, size=20, bold=True, color=SURFACE)
-    text(s, M, y + Inches(0.42), Inches(6.0), Inches(0.3),
-         f"{tg}  ·  {role}", size=13.5, color=RGBColor(0xD3, 0xEF, 0xC9))
-s.shapes.add_picture(str(ASSETS / "qr-demo.png"), W - M - Inches(2.1), Inches(2.5),
+    y = Inches(3.0) + Inches(1.05) * i
+    text(s, M, y, Inches(3.6), Inches(0.34), name, size=21, bold=True, color=TEXT_D)
+    text(s, M, y + Inches(0.42), Inches(6.4), Inches(0.3), f"{tg}   ·   {role}",
+         size=14, color=MUTED_D)
+panel(s, Inches(8.2), Inches(2.9), Inches(4.4), Inches(3.3), PANEL_2)
+s.shapes.add_picture(str(ASSETS / "qr-demo.png"), Inches(9.35), Inches(3.2),
                      Inches(2.1), Inches(2.1))
-text(s, W - M - Inches(3.4), Inches(4.72), Inches(3.4), Inches(0.3), "185.56.162.154",
-     size=14, bold=True, color=SURFACE, align=PP_ALIGN.RIGHT)
-text(s, M, Inches(6.0), Inches(11.7), Inches(0.4),
-     "github.com/veceloe/ai-gpr-center-cifra", size=14, color=RGBColor(0xE4, 0xF5, 0xDE))
-foot(s, color=RGBColor(0xD3, 0xEF, 0xC9))
+text(s, Inches(8.5), Inches(5.5), Inches(3.8), Inches(0.3), "185.56.162.154",
+     size=15, bold=True, color=TEXT_D, align=PP_ALIGN.CENTER)
+text(s, Inches(8.5), Inches(5.82), Inches(3.8), Inches(0.3), "лента, досье и дайджест на живых данных",
+     size=11.5, color=MUTED_D, align=PP_ALIGN.CENTER)
+text(s, M, Inches(6.4), Inches(7.0), Inches(0.3),
+     "github.com/veceloe/ai-gpr-center-cifra", size=14, color=MUTED_D)
+foot(s, "", MUTED_D)
+
+# ============================================================ 09 · Приложение · оценка
+s = slide(CANVAS)
+text(s, M, Inches(0.62), Inches(11.7), Inches(0.3), "ПРИЛОЖЕНИЕ · ДЛЯ ВОПРОСОВ",
+     size=11, bold=True, color=FAINT, spacing=2.0)
+text(s, M, Inches(1.0), Inches(11.7), Inches(0.5),
+     "Разбор оценки: шесть критериев и заземление", size=30, bold=True, color=INK)
+lead(s, Inches(1.6), "Слева цитата из оригинала под каждым утверждением. Справа балл, "
+     "вклад в индекс и обоснование по каждому критерию.", size=13)
+shot(s, "shot_breakdown.jpg", Inches(2.0))
+foot(s, "FR-024 · FR-081")
+
+# ============================================================ 10 · Приложение · досье
+s = slide(CANVAS)
+text(s, M, Inches(0.62), Inches(11.7), Inches(0.3), "ПРИЛОЖЕНИЕ · ДЛЯ ВОПРОСОВ",
+     size=11, bold=True, color=FAINT, spacing=2.0)
+text(s, M, Inches(1.0), Inches(11.7), Inches(0.5),
+     "Досье НПА: стадии, хронология, динамика влияния", size=30, bold=True, color=INK)
+lead(s, Inches(1.6), "Стадия «Обсуждение» помечена неприменимой, а не непройденной: "
+     "российские акты стадии пропускают, и линейная шкала без этого состояния лжёт.", size=13)
+shot(s, "shot_act.jpg", Inches(2.0))
+foot(s, "FR-032 · FR-035")
 
 count = len(prs.slides._sldIdLst)
 assert count == TOTAL, f"слайдов {count}, а в подвале написано {TOTAL}"
