@@ -183,11 +183,14 @@ def chip(s, x, y, txt, color, w=None):
     return sh
 
 
+TOTAL_SLIDES = 14  # держать равным числу слайдов; проверяется при сборке
+
+
 def foot(s, left, num, on_dark=False):
     text(s, M, H - Inches(0.58), Inches(9.4), Inches(0.28), left,
          size=9.5, color=MUTED_D if on_dark else MUTED_L)
     text(s, W - M - Inches(1.6), H - Inches(0.58), Inches(1.6), Inches(0.28),
-         f"{num} / 12", size=9.5, color=MUTED_D if on_dark else MUTED_L,
+         f"{num} / {TOTAL_SLIDES}", size=9.5, color=MUTED_D if on_dark else MUTED_L,
          align=PP_ALIGN.RIGHT)
 
 
@@ -375,7 +378,57 @@ para_list(s, LX, Inches(4.33), Inches(6.2), Inches(2.2), [
 ], size=13)
 foot(s, "ADR-0003 · в контракте ответа модели полей «категория» и «индекс» нет вовсе", "05")
 
-# =============================================================== 06 · Конвейер
+# =============================================================== 06 · Критерии
+s = slide()
+eyebrow(s, M, Inches(0.72), "Методика заказчика", "менять только через ADR")
+title(s, M, Inches(1.15), Inches(10.4), "Две шкалы: НПА и новости оцениваются по-разному", size=31)
+
+text(s, M, Inches(2.25), Inches(5.8), Inches(0.25), "НПА · индекс влияния",
+     size=10, bold=True, caps=True, spacing=1.3, color=MID)
+cw = [Inches(0.5), Inches(3.6), Inches(0.8)]
+table(s, M, Inches(2.6), Inches(4.9),
+      ["", "Критерий", "Вес"],
+      [["К1", "Применимость к деятельности компании", {"t": "0,25", "f": {"bold": True, "color": MID}}],
+       ["К2", "Юридическая сила и стадия принятия", "0,15"],
+       ["К3", "Финансовое воздействие", {"t": "0,20", "f": {"bold": True, "color": MID}}],
+       ["К4", "Операционная сложность адаптации", "0,15"],
+       ["К5", "Юридический и репутационный риск", "0,15"],
+       ["К6", "Срочность — время до применения", "0,10"]],
+      cw, size=11.5, row_h=Inches(0.38))
+
+text(s, Inches(6.9), Inches(2.25), Inches(5.7), Inches(0.25), "Новости · индекс актуальности",
+     size=10, bold=True, caps=True, spacing=1.3, color=MID)
+table(s, Inches(6.9), Inches(2.6), Inches(4.9),
+      ["", "Критерий", "Вес"],
+      [["Н1", "Актуальность события", {"t": "0,30", "f": {"bold": True, "color": MID}}],
+       ["Н2", "Релевантность продуктам и бизнесу", {"t": "0,30", "f": {"bold": True, "color": MID}}],
+       ["Н3", "Масштаб для отрасли", "0,20"],
+       ["Н4", "Динамика развития", "0,20"]],
+      cw, size=11.5, row_h=Inches(0.38))
+
+card(s, Inches(6.9), Inches(4.75), Inches(5.7), Inches(1.15), PAPER, HAIR)
+text(s, Inches(7.2), Inches(4.98), Inches(5.1), Inches(0.32),
+     "ИВ = ( Σ балл × вес ) ÷ 3 × 100", size=18, bold=True, color=INK)
+text(s, Inches(7.2), Inches(5.4), Inches(5.1), Inches(0.35),
+     "Каждый критерий — целое от 0 до 3. Модель выдаёт только баллы и обоснование.",
+     size=11, color=MUTED_L, line=1.3)
+
+text(s, M, Inches(5.1), Inches(5.8), Inches(0.25), "Пороги категорий",
+     size=10, bold=True, caps=True, spacing=1.3, color=MID)
+text(s, M, Inches(5.45), Inches(5.8), Inches(0.6),
+     [("0 ", {"bold": True, "color": INK}), ("Незначительное   ", {"color": MUTED_L}),
+      ("25 ", {"bold": True, "color": INK}), ("Низкое   ", {"color": MUTED_L}),
+      ("50 ", {"bold": True, "color": INK}), ("Среднее   ", {"color": MUTED_L}),
+      ("75 ", {"bold": True, "color": MID}), ("Высокое   ", {"color": MID}),
+      ("90 ", {"bold": True, "color": MID}), ("Критическое", {"color": MID})],
+     size=12, line=1.4)
+text(s, M, Inches(6.05), Inches(5.8), Inches(0.6),
+     [("Флаг эскалации поднимает категорию на ступень. ", {"bold": True, "color": INK}),
+      ("Список флагов закрытый: формулировку не из перечня код отбрасывает.", {"color": MUTED_L})],
+     size=11.5, line=1.35)
+foot(s, "backend/config/scoring.yaml", "06")
+
+# =============================================================== 07 · Конвейер
 s = slide()
 eyebrow(s, M, Inches(0.72), "Схема решения")
 title(s, M, Inches(1.15), Inches(9), "Конвейер обработки материала", size=31)
@@ -413,7 +466,7 @@ para_list(s, Inches(8.4), Inches(5.22), Inches(4.2), Inches(1.4), [
     "Отказ модели не теряет материал",
     "Правка человека не перезаписывается",
 ], size=12, color=MUTED_L)
-foot(s, "ADR-0007 · backend/src/pipeline/grounding.py", "06")
+foot(s, "ADR-0007 · backend/src/pipeline/grounding.py", "07")
 
 # =============================================================== 07 · Этапы
 s = slide()
@@ -444,7 +497,7 @@ for i, (n, l) in enumerate([("54", "задачи закрыты из 105"),
     cx = M + Inches(4.05) * i
     text(s, cx, Inches(5.55), Inches(3.5), Inches(0.6), n, size=36, bold=True, color=DEEP, line=1.0)
     text(s, cx, Inches(6.15), Inches(3.4), Inches(0.4), l, size=12, color=MUTED_L)
-foot(s, "Спецификация ведёт код: каждая задача ссылается на требование", "07")
+foot(s, "Спецификация ведёт код: каждая задача ссылается на требование", "08")
 
 # =============================================================== 08 · Результаты
 s = slide("dark")
@@ -481,9 +534,50 @@ para_list(s, Inches(4.6), Inches(5.25), Inches(8.0), Inches(1.3), [
     [("Кириллица в JSON хранилась экранированной", {"bold": True, "color": PAPER}),
      (" — поиск не находил ничего", {"color": MUTED_D})],
 ], size=12, color=MUTED_D)
-foot(s, "python -m src.cli verify-formula", "08", on_dark=True)
+foot(s, "python -m src.cli verify-formula", "09", on_dark=True)
 
-# =============================================================== 09 · Демо
+# =============================================================== 10 · Метрики
+s = slide("dark")
+eyebrow(s, M, Inches(0.72), "Метрики", "измерено, а не оценено на глаз", on_dark=True)
+title(s, M, Inches(1.15), Inches(10.4), "Время, деньги, качество", size=31, on_dark=True)
+
+blocks = [
+    ("Время", "12,7 с", "медиана обработки одного материала при цели 10–15 с",
+     "Ручной мониторинг 3–4 часа в день заменяется разбором готовой ленты за 10–15 минут"),
+    ("Деньги", "$0,00044", "стоимость одного материала целиком: саммари, заземление, оценка",
+     "Поток 150 материалов в сутки обходится примерно в 2 доллара в месяц"),
+    ("Качество", "37 / 42", "карточки эталона заказчика — категория совпала или разошлась на ступень",
+     "Провалов критичного в нижние категории: 1. Это ключевое условие заказчика"),
+]
+for i, (label, big, cap, note) in enumerate(blocks):
+    cx = M + Inches(4.05) * i
+    card(s, cx, Inches(2.3), Inches(3.75), Inches(2.75), RGBColor(0x16, 0x22, 0x46))
+    text(s, cx + Inches(0.32), Inches(2.55), Inches(3.1), Inches(0.25), label,
+         size=10, bold=True, caps=True, spacing=1.3, color=BRASS)
+    text(s, cx + Inches(0.32), Inches(2.95), Inches(3.1), Inches(0.62), big,
+         size=34, bold=True, color=PAPER, line=1.0)
+    text(s, cx + Inches(0.32), Inches(3.72), Inches(3.1), Inches(0.6), cap,
+         size=11, color=RGBColor(0xC8, 0xD4, 0xEE), line=1.3)
+    text(s, cx + Inches(0.32), Inches(4.35), Inches(3.1), Inches(0.6), note,
+         size=11, color=MUTED_D, line=1.3)
+
+rule(s, M, Inches(5.35), Inches(11.9), RGBColor(0x2B, 0x37, 0x5E))
+text(s, M, Inches(5.55), Inches(5.7), Inches(0.25), "Заземление саммари · 820 утверждений",
+     size=10, bold=True, caps=True, spacing=1.3, color=BRASS)
+para_list(s, M, Inches(5.9), Inches(5.7), Inches(1.1), [
+    [("89,1 % ", {"bold": True, "color": PAPER}), ("подтверждены обеими ступенями", {"color": MUTED_D})],
+    [("8,2 % ", {"bold": True, "color": PAPER}),
+     ("поймала вторая ступень: цитата настоящая, но утверждения не подтверждает", {"color": MUTED_D})],
+], size=11.5, color=MUTED_D)
+text(s, Inches(7.3), Inches(5.55), Inches(5.3), Inches(1.4),
+     [("Почему это важно. ", {"bold": True, "color": PAPER}),
+      ("Проверка вхождения строки эти 8,2 % пропустила бы, и утверждения попали бы "
+       "в ленту с видимой цитатой-подтверждением — то есть выглядели бы достовернее "
+       "непроверенного текста. Именно на этом классе ошибок коммерческие правовые ИИ "
+       "дают 17–33 %.", {"color": MUTED_D})], size=11.5, line=1.35)
+foot(s, "evals/results.md · python -m src.cli evaluate", "10", on_dark=True)
+
+# =============================================================== 11 · Демо
 s = slide()
 eyebrow(s, M, Inches(0.72), "Демонстрация")
 title(s, M, Inches(1.15), Inches(10.4), "Что показываем и что честно назвать незакрытым", size=31)
@@ -513,7 +607,7 @@ text(s, M, Inches(6.05), Inches(11.9), Inches(0.7),
        "Actions падает на старте по причине уровня аккаунта, порт 22 сервера не отвечает. "
        "Запасной путь развёртывания готов и не зависит от обоих.", {"color": MUTED_L})],
      size=12.5, line=1.35)
-foot(s, "Локальный запуск — backend/README.md", "09")
+foot(s, "Локальный запуск — backend/README.md", "11")
 
 # =============================================================== 10 · Риски
 s = slide()
@@ -543,7 +637,7 @@ text(s, M + Inches(0.35), Inches(6.29), Inches(11.2), Inches(0.42),
       ("Не добавляем «вероятность принятия законопроекта»: доля принимаемых актов — единицы "
        "процентов: модель, всегда отвечающая «не пройдёт», даёт ~95% точности и бесполезна. Ровно на этом FiscalNote потеряла заявленную ценность.", {"color": MUTED_L})],
      size=11.5, line=1.3)
-foot(s, "7 гипотез с порогами принятия — docs/hypotheses.md", "10")
+foot(s, "7 гипотез с порогами принятия — docs/hypotheses.md", "12")
 
 # =============================================================== 11 · План
 s = slide()
@@ -580,7 +674,7 @@ text(s, Inches(7.3), Inches(5.85), Inches(5.3), Inches(0.9),
       ("Только измеренную величину с базовой ставкой рядом. Формулировка «без галлюцинаций» "
        "запрещена внутренним правилом проекта.", {"color": MUTED_L})],
      size=12.5, line=1.35)
-foot(s, "51 задача осталась · specs/001-ai-monitoring-center/tasks.md", "11")
+foot(s, "51 задача осталась · specs/001-ai-monitoring-center/tasks.md", "13")
 
 # =============================================================== 12 · Команда
 s = slide("dark")
@@ -603,16 +697,24 @@ for i, (ini, name, meta, resp, col) in enumerate(team):
          size=11, color=BRASS)
     text(s, cx + Inches(0.32), Inches(4.25), Inches(3.1), Inches(1.4), resp,
          size=11.5, color=MUTED_D, line=1.34)
-rule(s, M, Inches(5.85), Inches(11.9), RGBColor(0x2B, 0x37, 0x5E))
-text(s, M, Inches(6.05), Inches(5.6), Inches(0.7),
+rule(s, M, Inches(5.72), Inches(11.9), RGBColor(0x2B, 0x37, 0x5E))
+# QR ведёт на живой стенд: с ним демо можно открыть с телефона прямо из зала.
+s.shapes.add_picture(str(ASSETS / "qr-demo.png"), M, Inches(5.95), Inches(1.15), Inches(1.15))
+text(s, M + Inches(1.35), Inches(6.02), Inches(4.4), Inches(0.3), "Живой стенд",
+     size=10, bold=True, caps=True, spacing=1.3, color=BRASS)
+text(s, M + Inches(1.35), Inches(6.34), Inches(4.4), Inches(0.6),
+     [("185.56.162.154", {"bold": True, "color": PAPER, "size": 15}),
+      ("\nЛента, досье НПА и дайджест на данных заказчика", {"color": MUTED_D})],
+     size=11, line=1.3)
+text(s, Inches(7.3), Inches(5.95), Inches(5.3), Inches(1.15),
      [("Как организована работа. ", {"bold": True, "color": PAPER}),
-      ("Границей между дорожками служит контракт API, зафиксированный до кодирования — "
-       "дорожки не блокируют друг друга.", {"color": MUTED_D})], size=12, line=1.35)
-text(s, Inches(7.3), Inches(6.05), Inches(5.3), Inches(0.7),
-     [("Вклад AI Product в код. ", {"bold": True, "color": PAPER}),
-      ("Три продуктовых решения доведены до строчки кода и до теста, который их защищает.",
-       {"color": MUTED_D})], size=12, line=1.35)
-foot(s, "github.com/veceloe/ai-gpr-center-cifra", "12", on_dark=True)
+      ("Границей между дорожками служит контракт API, зафиксированный до кодирования: "
+       "дорожки не блокируют друг друга, а расхождение ручных типов с контрактом "
+       "становится ошибкой компиляции, а не сюрпризом у пользователя.",
+       {"color": MUTED_D})], size=11.5, line=1.35)
+foot(s, "github.com/veceloe/ai-gpr-center-cifra", "14", on_dark=True)
 
+count = len(prs.slides._sldIdLst)
+assert count == TOTAL_SLIDES, f"слайдов {count}, а в подвале написано {TOTAL_SLIDES}"
 prs.save(str(OUT))
 print("сохранено:", OUT, f"{OUT.stat().st_size // 1024} КБ, слайдов: {len(prs.slides.__iter__.__self__._sldIdLst)}")
