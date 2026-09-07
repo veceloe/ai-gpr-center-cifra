@@ -36,6 +36,7 @@ LINE = RGBColor(0xD9, 0xD9, 0xD9)
 MUTED = RGBColor(0x6B, 0x72, 0x80)
 FAINT = RGBColor(0x9A, 0xA1, 0xAB)
 RISK = RGBColor(0xEB, 0x57, 0x57)
+MID_GREEN = RGBColor(0xA8, 0xDC, 0x98)
 
 prs = Presentation()
 prs.slide_width, prs.slide_height = W, H
@@ -137,6 +138,51 @@ def label(s, x, y, w, txt, color=MUTED):
          caps=True, spacing=1.4)
 
 
+def box(s, x, y, w, h, fill=SURFACE, line_color=LINE, width=Pt(1.0)):
+    r = s.shapes.add_shape(5, x, y, w, h)  # скруглённый прямоугольник
+    r.fill.solid()
+    r.fill.fore_color.rgb = fill
+    r.line.color.rgb = line_color
+    r.line.width = width
+    r.shadow.inherit = False
+    r.adjustments[0] = 0.06
+    return r
+
+
+def arrow(s, x, y, w, color=INK):
+    a = s.shapes.add_shape(13, x, y, w, Inches(0.16))  # стрелка вправо
+    a.fill.solid()
+    a.fill.fore_color.rgb = color
+    a.line.fill.background()
+    a.shadow.inherit = False
+    return a
+
+
+def waffle(s, x, y, counts, cell=Inches(0.42), gap=Inches(0.09), per_row=14):
+    """Одна клетка — одна карточка эталона. Не украшение: раскладка равна замеру."""
+    i = 0
+    for color, n in counts:
+        for _ in range(n):
+            cx = x + (cell + gap) * (i % per_row)
+            cy = y + (cell + gap) * (i // per_row)
+            r = s.shapes.add_shape(1, cx, cy, cell, cell)
+            r.fill.solid()
+            r.fill.fore_color.rgb = color
+            r.line.fill.background()
+            r.shadow.inherit = False
+            i += 1
+
+
+def legend(s, x, y, entries, size=12):
+    off = Inches(0)
+    for color, txt in entries:
+        d = s.shapes.add_shape(1, x + off, y + Inches(0.03), Inches(0.16), Inches(0.16))
+        d.fill.solid(); d.fill.fore_color.rgb = color
+        d.line.fill.background(); d.shadow.inherit = False
+        text(s, x + off + Inches(0.26), y, Inches(2.9), Inches(0.25), txt, size=size, color=MUTED)
+        off += Inches(3.15)
+
+
 # ============================================================ 01 · Титул
 s = slide(BRAND)
 text(s, M, Inches(2.0), Inches(11.7), Inches(0.3), "ITMO AI Product Hack · кейс ООО «Цифра»",
@@ -177,15 +223,27 @@ s = slide()
 bar(s, M, Inches(1.5), Inches(1.5))
 text(s, M + Inches(0.42), Inches(1.45), Inches(11.0), Inches(1.6),
      "Модель выставляет баллы.\nИндекс считает код.", size=42, bold=True, line=1.14)
-text(s, M + Inches(0.42), Inches(3.35), Inches(10.4), Inches(0.9),
-     "В контракте ответа модели полей «индекс» и «категория» нет вовсе — она физически "
-     "не может их вернуть. Поэтому оценку можно проверить, объяснить и поправить.",
-     size=15.5, color=MUTED, line=1.45)
-text(s, M + Inches(0.42), Inches(4.72), Inches(11.0), Inches(0.9),
-     "ИВ  =  ( Σ балл × вес )  ÷  3  ×  100", size=32, bold=True, color=BRAND_DARK)
-text(s, M + Inches(0.42), Inches(5.75), Inches(10.4), Inches(0.7),
-     "Веса и пороги — методика заказчика, она у него уже была в Excel. Мы её не придумывали "
-     "и менять можем только с его согласия.", size=13.5, color=MUTED, line=1.45)
+
+# Схема границы: что отдаёт модель и что из этого делает код.
+box(s, M, Inches(3.5), Inches(4.6), Inches(1.85), SURFACE, BRAND, Pt(1.5))
+label(s, M + Inches(0.32), Inches(3.75), Inches(4.0), "Модель", BRAND_DARK)
+text(s, M + Inches(0.32), Inches(4.1), Inches(4.0), Inches(1.1),
+     "К1 · 3    К2 · 2    К3 · 3\nК4 · 0    К5 · 0    К6 · 3\n\nи обоснование к каждому баллу",
+     size=15, color=INK, line=1.5)
+arrow(s, M + Inches(4.85), Inches(4.34), Inches(0.85), BRAND_DARK)
+box(s, M + Inches(6.0), Inches(3.5), Inches(4.9), Inches(1.85), INK, INK, Pt(1.5))
+label(s, M + Inches(6.32), Inches(3.75), Inches(4.2), "Код", RGBColor(0x9A, 0xE0, 0x88))
+text(s, M + Inches(6.32), Inches(4.08), Inches(4.3), Inches(1.2),
+     [("индекс 65,0", {"bold": True, "color": SURFACE, "size": 17}),
+      ("  →  ", {"color": FAINT, "size": 17}),
+      ("категория «Среднее»", {"bold": True, "color": SURFACE, "size": 17}),
+      ("\nфлаг эскалации поднимает до «Высокого»",
+       {"color": RGBColor(0xC8, 0xD4, 0xC8), "size": 13})], line=1.5)
+text(s, M, Inches(5.75), Inches(11.0), Inches(0.7),
+     [("В контракте ответа модели полей «индекс» и «категория» нет вовсе. ",
+       {"bold": True, "color": INK}),
+      ("Она физически не может их вернуть — поэтому оценку можно проверить и поправить.",
+       {"color": MUTED})], size=14.5, line=1.45)
 foot(s, "ADR-0003 · backend/config/scoring.yaml")
 
 # ============================================================ 04 · Лента
@@ -219,25 +277,37 @@ shot(s, "shot_act.jpg")
 foot(s, "FR-032 · FR-035")
 
 # ============================================================ 07 · Сколько стоит
-# Два числа в одном масштабе, без карточек и без диаграмм: контраст говорит сам.
 s = slide()
 bar(s, M, Inches(1.5), Inches(0.9))
 text(s, M + Inches(0.42), Inches(1.45), Inches(11.0), Inches(1.0),
      "Обработка потока стоит дешевле,\nчем один пропущенный документ", size=34, bold=True, line=1.16)
-bar(s, M, Inches(3.32), Inches(1.0))
-big(s, M + Inches(0.42), Inches(3.3), Inches(5.0), "≈ 2 100 ₽", size=54, color=BRAND_DARK)
-label(s, M + Inches(0.42), Inches(4.35), Inches(5.0), "в год")
-text(s, M + Inches(0.42), Inches(4.72), Inches(4.8), Inches(1.0),
-     "Полная обработка потока в 150 материалов в сутки: саммари, заземление, "
-     "классификация и оценка. Четыре копейки за материал.", size=13.5, color=MUTED, line=1.45)
-bar(s, Inches(7.1), Inches(3.32), Inches(1.0), RISK)
-big(s, Inches(7.52), Inches(3.3), Inches(5.2), "500 000 ₽", size=54, color=INK)
-label(s, Inches(7.52), Inches(4.35), Inches(5.2), "один штраф")
-text(s, Inches(7.52), Inches(4.72), Inches(5.0), Inches(1.0),
-     "Верхняя граница по ФЗ № 295-ФЗ для операторов цифровых платформ. "
-     "Одного пропуска хватает, чтобы перекрыть двести лет работы модели.",
-     size=13.5, color=MUTED, line=1.45)
-text(s, M, Inches(6.25), Inches(11.7), Inches(0.4),
+
+# Полосы в честном масштабе: 2 100 против 500 000 — это 0,42 %, и малая полоса
+# почти не видна. Это и есть сообщение, поэтому она не увеличена «для наглядности».
+SCALE = Inches(11.0) / 500000
+text(s, M, Inches(3.5), Inches(6.0), Inches(0.3), "Год работы модели на потоке 150 материалов в сутки",
+     size=13, color=MUTED)
+r = s.shapes.add_shape(1, M, Inches(3.85), max(int(2100 * SCALE), Inches(0.04)), Inches(0.34))
+r.fill.solid(); r.fill.fore_color.rgb = BRAND
+r.line.fill.background(); r.shadow.inherit = False
+text(s, M + Inches(0.18), Inches(3.83), Inches(4.0), Inches(0.35), "≈ 2 100 ₽",
+     size=17, bold=True, color=BRAND_DARK)
+
+text(s, M, Inches(4.75), Inches(8.0), Inches(0.3),
+     "Один штраф по ФЗ № 295-ФЗ для операторов цифровых платформ, верхняя граница",
+     size=13, color=MUTED)
+r = s.shapes.add_shape(1, M, Inches(5.1), Inches(11.0), Inches(0.34))
+r.fill.solid(); r.fill.fore_color.rgb = RISK
+r.line.fill.background(); r.shadow.inherit = False
+text(s, M + Inches(0.18), Inches(5.08), Inches(4.0), Inches(0.35), "500 000 ₽",
+     size=17, bold=True, color=SURFACE)
+
+text(s, M, Inches(5.75), Inches(11.7), Inches(0.7),
+     [("Полосы в одном масштабе. ", {"bold": True, "color": INK}),
+      ("Верхняя — годовая стоимость обработки: четыре копейки за материал. "
+       "Одного пропущенного документа хватает, чтобы перекрыть двести лет её работы.",
+       {"color": MUTED})], size=14.5, line=1.45)
+text(s, M, Inches(6.55), Inches(11.7), Inches(0.3),
      "Пересчитано по курсу ЦБ на 05.09.2026 — 86,59 ₽ за доллар.",
      size=11.5, color=FAINT)
 foot(s, "docs/business-case.md · замер стоимости на реальном материале")
@@ -247,29 +317,33 @@ s = slide()
 bar(s, M, Inches(1.5), Inches(0.62))
 text(s, M + Inches(0.42), Inches(1.45), Inches(11.0), Inches(0.7),
      "Проверено на реестре самого заказчика", size=34, bold=True)
-big(s, M, Inches(2.75), Inches(4.2), "37 / 42", size=56, color=BRAND_DARK)
-label(s, M, Inches(3.8), Inches(4.6), "категория совпала или рядом")
-text(s, M, Inches(4.18), Inches(4.4), Inches(1.2),
-     "Из сорока двух карточек с проставленными вручную баллами. Формула воспроизводит "
-     "методику точно: индекс и категория сошлись на всех сорока двух.",
-     size=13.5, color=MUTED, line=1.45)
-big(s, Inches(5.9), Inches(2.75), Inches(3.0), "8,2 %", size=56, color=BRAND_DARK)
-label(s, Inches(5.9), Inches(3.8), Inches(3.4), "поймала вторая ступень")
-text(s, Inches(5.9), Inches(4.18), Inches(3.2), Inches(1.4),
-     "Утверждений, где цитата дословно есть в оригинале, но утверждения не подтверждает. "
-     "Проверка подстрокой их пропустила бы. У коммерческих правовых ИИ этот класс даёт 17–33 %.",
-     size=13.5, color=MUTED, line=1.45)
-big(s, Inches(9.9), Inches(2.75), Inches(2.8), "12,7", size=56, color=BRAND_DARK)
-label(s, Inches(9.9), Inches(3.8), Inches(2.8), "секунды на материал")
-text(s, Inches(9.9), Inches(4.18), Inches(2.7), Inches(1.2),
-     "Медиана полной обработки при целевых десяти-пятнадцати секундах.",
-     size=13.5, color=MUTED, line=1.45)
-text(s, M, Inches(6.05), Inches(11.7), Inches(0.5),
-     [("Ведущая метрика — не общая точность. ", {"bold": True, "color": INK}),
-      ("Заказчик назвал ключевым условием отсутствие провалов важного в нижние категории: "
-       "пропущенное регуляторное изменение стоит дороже десятка лишних материалов в ленте.",
-       {"color": MUTED})], size=13.5, line=1.45)
-foot(s, "evals/results.md · python -m src.cli evaluate")
+text(s, M + Inches(0.42), Inches(2.15), Inches(10.6), Inches(0.4),
+     "Сорок две карточки, баллы в них проставлены человеком. Одна клетка — одна карточка.",
+     size=14, color=MUTED)
+
+waffle(s, M, Inches(2.85), [(BRAND, 18), (MID_GREEN, 20), (RISK, 4)])
+legend(s, M, Inches(4.7), [
+    (BRAND, "18 — категория совпала точно"),
+    (MID_GREEN, "20 — разошлась на одну ступень"),
+    (RISK, "4 — разошлась сильнее"),
+])
+
+big(s, Inches(8.8), Inches(2.8), Inches(3.8), "42 / 42", size=46, color=BRAND_DARK)
+label(s, Inches(8.8), Inches(3.72), Inches(3.8), "формула сходится точно")
+text(s, Inches(8.8), Inches(4.08), Inches(3.7), Inches(0.9),
+     "Отдельная проверка: получив экспертные баллы, код выдаёт тот же индекс "
+     "и ту же категорию, что в Excel заказчика. Включая эскалацию.",
+     size=13, color=MUTED, line=1.45)
+
+text(s, M, Inches(5.5), Inches(11.7), Inches(0.9),
+     [("Провалов важного в нижние категории: один при цели ноль. ",
+       {"bold": True, "color": INK}),
+      ("Это ключевое условие заказчика, и оно важнее общей точности: пропущенное "
+       "регуляторное изменение стоит дороже десятка лишних материалов в ленте. "
+       "Заземление отдельно: 8,2 % утверждений отбраковала вторая ступень — цитата "
+       "в оригинале есть, но утверждения не подтверждает.", {"color": MUTED})],
+     size=14, line=1.45)
+foot(s, "evals/results.md · python -m src.cli evaluate · verify-formula")
 
 # ============================================================ 09 · Границы
 s = slide()
