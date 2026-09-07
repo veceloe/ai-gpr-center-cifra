@@ -7,10 +7,19 @@ services:
     container_name: ai-gpr-backend
     env_file:
       - ./backend/.env
+    # Прокси для исходящих запросов к модели. Нужен там, где провайдер блокирует
+    # IP хоста: OpenRouter отвечает демо-серверу «Access denied by security policy».
+    # Значение берётся из .env рядом с этим файлом (на сервере, в репозиторий не
+    # попадает); пусто — ходим напрямую, как и раньше.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
       DATABASE_URL: sqlite+aiosqlite:///./data/app.db
       API_HOST: 0.0.0.0
       API_PORT: 8000
+      HTTP_PROXY: ${LLM_HTTP_PROXY:-}
+      HTTPS_PROXY: ${LLM_HTTP_PROXY:-}
+      NO_PROXY: localhost,127.0.0.1
     volumes:
       - backend_data:/app/data
     ports:
