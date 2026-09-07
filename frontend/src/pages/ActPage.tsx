@@ -59,6 +59,10 @@ export function ActPage({ onToast }: Props) {
   const { id } = useParams<{ id: string }>()
   const actId = Number(id)
   const [act, setAct] = useState<ActDetail | null>(null)
+  // Клик по карточке раскрывает её здесь же, как в ленте. Раньше он открывал
+  // оригинал в новой вкладке — при том что для оригинала в карточке есть
+  // отдельная ссылка, и клик по самой карточке уводил со страницы досье.
+  const [expandedItem, setExpandedItem] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
@@ -280,11 +284,11 @@ export function ActPage({ onToast }: Props) {
                 key={item.id}
                 item={item}
                 focused={false}
-                expanded={false}
+                expanded={expandedItem === item.id}
                 selected={false}
                 selectable={false}
                 onFocus={() => {}}
-                onToggle={() => window.open(item.url, '_blank')}
+                onToggle={() => setExpandedItem(expandedItem === item.id ? null : item.id)}
                 onSelect={() => {}}
               />
             ))}

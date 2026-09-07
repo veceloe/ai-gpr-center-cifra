@@ -72,6 +72,25 @@ async def apply_compat_migrations(conn) -> None:
     await conn.execute(
         text("CREATE INDEX IF NOT EXISTS ix_sources_item_type ON sources (item_type)")
     )
+    if "is_archived" not in columns:
+        await conn.execute(
+            text("ALTER TABLE sources ADD COLUMN is_archived BOOLEAN NOT NULL DEFAULT 0")
+        )
+        # Прежняя версия «удаления» дописывала к названию « (удалён)» и делала это
+        # при каждом нажатии, так что суффикс мог накопиться многократно. Снимаем
+        # его и переводим такие источники в архив — там им и место.
+        await conn.execute(
+            text("UPDATE sources SET is_archived = 1 WHERE title LIKE '% (удалён)'")
+        )
+        await conn.execute(
+            text(
+                "UPDATE sources SET title = trim(replace(title, ' (удалён)', '')) "
+                "WHERE title LIKE '% (удалён)%'"
+            )
+        )
+    await conn.execute(
+        text("CREATE INDEX IF NOT EXISTS ix_sources_is_archived ON sources (is_archived)")
+    )
     story_columns = {
         row[1] for row in (await conn.execute(text("PRAGMA table_info(stories)"))).all()
     }

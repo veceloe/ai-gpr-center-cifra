@@ -104,6 +104,9 @@ class ItemCardOut(BaseModel):
     story_id: int | None = None
     story: StoryRefOut | None = None
     act_id: int | None = None
+    # Сколько всего материалов об этом же акте. Лента показывает один,
+    # остальные открываются в досье — иначе одна поправка занимает пол-экрана.
+    act_item_count: int = 0
     tags: list[str] = Field(default_factory=list)
 
 
@@ -162,6 +165,7 @@ class SourceOut(BaseModel):
     url: str
     title: str
     is_active: bool
+    is_archived: bool = False
     poll_interval_min: int
     last_polled_at: datetime | None = None
     last_error: str | None = None
@@ -407,6 +411,7 @@ def item_card(item: Item, *, is_edited: bool = False) -> ItemCardOut:
         story_id=item.story_id,
         story=_story_ref(item),
         act_id=item.act_id,
+        act_item_count=item.act_item_count or 0,
         tags=item.tags or [],
     )
 

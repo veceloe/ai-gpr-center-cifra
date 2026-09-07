@@ -9,7 +9,7 @@ from __future__ import annotations
 import logging
 from typing import Annotated
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -47,6 +47,7 @@ def _out(source: Source, item_count: int = 0) -> SourceOut:
         url=source.url,
         title=source.title,
         is_active=source.is_active,
+        is_archived=source.is_archived,
         poll_interval_min=source.poll_interval_min,
         last_polled_at=source.last_polled_at,
         last_error=source.last_error,
@@ -55,11 +56,15 @@ def _out(source: Source, item_count: int = 0) -> SourceOut:
 
 
 @router.get("/sources", response_model=list[SourceOut])
-async def list_sources(db: Annotated[AsyncSession, Depends(get_db)]) -> list[SourceOut]:
+async def list_sources(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    archived: Annotated[bool, Query(description="показать удалённые источники")] = False,
+) -> list[SourceOut]:
     counts = dict(
         (await db.execute(select(Item.source_id, func.count(Item.id)).group_by(Item.source_id))).all()
     )
-    sources = list((await db.execute(select(Source).order_by(Source.id))).scalars().all())
+    stmt = select(Source).where(Source.is_archived.is_(archived)).order_by(Source.id)
+    sources = list((await db.execute(stmt)).scalars().all())
     return [_out(s, counts.get(s.id, 0)) for s in sources]
 
 
@@ -141,10 +146,16 @@ async def delete_source(source_id: int, db: Annotated[AsyncSession, Depends(get_
         await db.execute(select(func.count(Item.id)).where(Item.source_id == source_id))
     ).scalar() or 0
     if linked:
-        # Материалы должны сохранить связь с источником, поэтому вместо удаления —
-        # деактивация. Иначе лента потеряет происхождение материалов.
+        # Материалы должны сохранить связь с источником, поэтому строку в базе
+        # не стираем — иначе лента потеряет происхождение материалов (FR-004).
+        # Но из списка источник уходит: пользователь нажал «удалить» и вправе
+        # ожидать, что источник исчезнет.
+        #
+        # Прежде вместо этого к названию дописывалось « (удалён)», причём при
+        # каждом нажатии заново, а сам источник оставался в списке — выглядело
+        # как поломка: удаление «не работает», а название растёт.
         source.is_active = False
-        source.title = f"{source.title} (удалён)"
+        source.is_archived = True
         await db.commit()
         return
     await db.delete(source)

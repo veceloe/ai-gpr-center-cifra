@@ -101,16 +101,32 @@ export function contributionPoints(contribution: number, divisor = 3): number {
 /**
  * Человекочитаемое имя досье.
  *
- * Когда материал не прошёл классификацию, номер акта неизвестен и backend
- * подставляет запасной идентификатор вида `url:<хеш>`. Показывать его в
- * заголовке нельзя: пользователь должен видеть документ, а не служебный ключ.
+ * Идентификатор акта — служебный ключ, по которому материалы связываются
+ * в одно досье. Часть ключей человек читать не должен:
+ *
+ *   `ФЗ № 243-ФЗ`, `Законопроект № 1215252-8` — канонический номер, показываем как есть;
+ *   `regulation.gov.ru:170862` — номер проекта на портале, разворачиваем в текст;
+ *   `url:0fc4420b21f4613f` — номер не распознан вовсе, показываем суть документа.
  */
+const PORTAL_LABELS: Record<string, string> = {
+  'regulation.gov.ru': 'Проект НПА № {n} · regulation.gov.ru',
+  'sozd.duma.gov.ru': 'Законопроект № {n} · СОЗД',
+}
+
 export function actTitle(identifier: string, essence: string): string {
-  if (!identifier.startsWith('url:')) return identifier
-  const firstSentence = essence.split(/[.:]\s/)[0]?.trim()
-  return firstSentence && firstSentence.length > 12
-    ? firstSentence.slice(0, 160)
-    : 'Документ без распознанного номера'
+  if (identifier.startsWith('url:')) {
+    const firstSentence = essence.split(/[.:]\s/)[0]?.trim()
+    return firstSentence && firstSentence.length > 12
+      ? firstSentence.slice(0, 160)
+      : 'Документ без распознанного номера'
+  }
+  const colon = identifier.indexOf(':')
+  if (colon > 0) {
+    const template = PORTAL_LABELS[identifier.slice(0, colon)]
+    const number = identifier.slice(colon + 1)
+    if (template && number) return template.replace('{n}', number)
+  }
+  return identifier
 }
 
 /** Номер акта не распознан — это стоит показать явно, а не прятать. */

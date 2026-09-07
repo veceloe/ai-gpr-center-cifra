@@ -125,6 +125,8 @@ export interface ItemCard {
   story_id: number | null
   story: StoryRef | null
   act_id: number | null
+  /** Сколько всего материалов об этом же акте — лента показывает один. */
+  act_item_count: number
   tags: string[]
 }
 
@@ -175,6 +177,8 @@ export interface Source {
   url: string
   title: string
   is_active: boolean
+  /** Удалён пользователем: строка сохранена ради происхождения материалов. */
+  is_archived: boolean
   poll_interval_min: number
   last_polled_at: string | null
   last_error: string | null

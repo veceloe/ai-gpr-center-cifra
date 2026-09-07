@@ -96,6 +96,35 @@ def _hide_story_duplicates(stmt: Select) -> Select:
     return stmt.where(or_(Item.story_id.is_(None), Item.id.in_(representatives)))
 
 
+def _hide_act_duplicates(stmt: Select) -> Select:
+    """В ленте одна карточка на акт — остальные публикации живут в досье.
+
+    Правило то же, что для сюжетов: одна поправка обсуждается сразу
+    несколькими изданиями и регуляторными площадками, и без схлопывания
+    она занимает пол-экрана ленты, вытесняя всё остальное.
+
+    Представитель — материал с наибольшим индексом влияния, а не самый ранний:
+    лента отсортирована по воздействию, и прятать более сильную карточку
+    за более ранний идентификатор нельзя.
+    """
+    ranked = (
+        select(
+            Item.id,
+            func.row_number()
+            .over(
+                partition_by=Item.act_id,
+                order_by=(Assessment.index_value.desc().nullslast(), Item.id.asc()),
+            )
+            .label("rn"),
+        )
+        .outerjoin(Assessment, (Assessment.item_id == Item.id) & Assessment.is_current.is_(True))
+        .where(Item.act_id.isnot(None))
+        .subquery()
+    )
+    representatives = select(ranked.c.id).where(ranked.c.rn == 1)
+    return stmt.where(or_(Item.act_id.is_(None), Item.id.in_(representatives)))
+
+
 @router.get("/feed", response_model=FeedResponse)
 async def get_feed(
     db: Annotated[AsyncSession, Depends(get_db)],
@@ -136,16 +165,15 @@ async def get_feed(
             selectinload(Item.story),
         )
     )
-    stmt = _hide_story_duplicates(_apply_filters(base, **filters))
+    stmt = _hide_act_duplicates(_hide_story_duplicates(_apply_filters(base, **filters)))
 
-    count_stmt = _hide_story_duplicates(
-        _apply_filters(
-            select(func.count(func.distinct(Item.id)))
-            .outerjoin(Assessment, (Assessment.item_id == Item.id) & Assessment.is_current.is_(True))
-            .outerjoin(Summary, (Summary.item_id == Item.id) & Summary.is_current.is_(True)),
-            **filters,
-        )
+    count_base = _apply_filters(
+        select(func.count(func.distinct(Item.id)))
+        .outerjoin(Assessment, (Assessment.item_id == Item.id) & Assessment.is_current.is_(True))
+        .outerjoin(Summary, (Summary.item_id == Item.id) & Summary.is_current.is_(True)),
+        **filters,
     )
+    count_stmt = _hide_act_duplicates(_hide_story_duplicates(count_base))
     total = (await db.execute(count_stmt)).scalar() or 0
 
     # Материалы без оценки не должны вытеснять оценённые в начало ленты.

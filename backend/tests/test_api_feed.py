@@ -17,6 +17,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.api.main import app
 from src.db import get_db
 from src.models import (
+    Act,
+    ActStage,
     Assessment,
     AssessmentScheme,
     Author,
@@ -386,3 +388,72 @@ class TestStoryCard:
         after = (await client.get(f"/stories/{story.id}")).json()
         assert after["was_split_by_user"] is True
         assert after["items"] == []
+
+
+@pytest.mark.asyncio
+async def test_feed_collapses_materials_of_one_act(
+    client: AsyncClient, session: AsyncSession, source: Source, profile: CompanyProfile
+) -> None:
+    """Об одном акте пишут многие — в ленте это одна карточка, остальное в досье.
+
+    Без схлопывания одна поправка занимает пол-экрана и вытесняет всё прочее.
+    Представителем становится материал с наибольшим индексом влияния: лента
+    отсортирована по воздействию, прятать более сильную карточку нельзя.
+    """
+    act = Act(
+        act_identifier="ФЗ № 111-ФЗ",
+        doc_type="НПА",
+        stage=ActStage.SUBMITTED,
+        source_url="https://example.test/act/111",
+        essence="Поправки к закону о связи",
+    )
+    session.add(act)
+    await session.flush()
+
+    for n, index in enumerate([40.0, 72.0, 55.0], start=1):
+        item = Item(
+            source_id=source.id,
+            url=f"https://example.test/act-news/{n}",
+            title=f"Публикация {n} о ФЗ № 111-ФЗ",
+            raw_text="Текст публикации о поправках",
+            content_hash=f"act-hash-{n}",
+            published_at=datetime(2026, 9, n, tzinfo=UTC),
+            item_type=ItemType.ACT,
+            act_id=act.id,
+            is_relevant=True,
+        )
+        session.add(item)
+        await session.flush()
+        session.add(
+            Summary(
+                item_id=item.id,
+                text=f"Саммари публикации {n}.",
+                claims=[],
+                entities={},
+                author=Author.AI,
+                is_current=True,
+            )
+        )
+        session.add(
+            Assessment(
+                item_id=item.id,
+                profile_id=profile.id,
+                scheme=AssessmentScheme.NPA_K1_K6,
+                scores={"К1": 3, "К2": 2, "К3": 2, "К4": 1, "К5": 1, "К6": 2},
+                rationales={},
+                index_value=index,
+                category="Среднее",
+                escalation_flags=[],
+                final_category="Среднее",
+                author=Author.AI,
+                is_current=True,
+            )
+        )
+    await session.commit()
+
+    body = (await client.get("/feed", params={"limit": 50})).json()
+    act_cards = [i for i in body["items"] if i["act_id"] == act.id]
+
+    assert len(act_cards) == 1, "три публикации об одном акте должны схлопнуться в одну карточку"
+    assert act_cards[0]["index_value"] == 72.0, "представитель — с наибольшим влиянием"
+    assert act_cards[0]["act_item_count"] == 3, "счётчик объясняет, что за карточкой ещё материалы"

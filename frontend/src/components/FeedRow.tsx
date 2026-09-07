@@ -109,6 +109,11 @@ export function FeedRow({
               +{plural(item.story.item_count - 1, 'перепечатка', 'перепечатки', 'перепечаток')}
             </span>
           )}
+          {item.act_id !== null && item.act_item_count > 1 && (
+            <span className="badge badge-act" title="Материалы об одном акте схлопнуты — все они в досье">
+              +{plural(item.act_item_count - 1, 'материал', 'материала', 'материалов')} в досье
+            </span>
+          )}
           {item.is_edited && <span className="badge badge-edited">скорректировано</span>}
           {item.assessment_failed && (
             <span className="badge badge-risk" title="Оценка не получена, материал сохранён">

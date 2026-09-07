@@ -766,17 +766,41 @@
         ],
         "summary": "List Sources",
         "operationId": "list_sources_api_sources_get",
+        "parameters": [
+          {
+            "name": "archived",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "показать удалённые источники",
+              "default": false,
+              "title": "Archived"
+            },
+            "description": "показать удалённые источники"
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
+                  "type": "array",
                   "items": {
                     "$ref": "#/components/schemas/SourceOut"
                   },
-                  "type": "array",
                   "title": "Response List Sources Api Sources Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -790,14 +814,14 @@
         "summary": "Create Source",
         "operationId": "create_source_api_sources_post",
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/SourceCreate"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "201": {
@@ -2405,6 +2429,11 @@
             ],
             "title": "Act Id"
           },
+          "act_item_count": {
+            "type": "integer",
+            "title": "Act Item Count",
+            "default": 0
+          },
           "tags": {
             "items": {
               "type": "string"
@@ -2618,6 +2647,11 @@
               }
             ],
             "title": "Act Id"
+          },
+          "act_item_count": {
+            "type": "integer",
+            "title": "Act Item Count",
+            "default": 0
           },
           "tags": {
             "items": {
@@ -2999,6 +3033,11 @@
           "is_active": {
             "type": "boolean",
             "title": "Is Active"
+          },
+          "is_archived": {
+            "type": "boolean",
+            "title": "Is Archived",
+            "default": false
           },
           "poll_interval_min": {
             "type": "integer",

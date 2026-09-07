@@ -832,6 +832,11 @@ export interface components {
             story?: components["schemas"]["StoryRefOut"] | null;
             /** Act Id */
             act_id?: number | null;
+            /**
+             * Act Item Count
+             * @default 0
+             */
+            act_item_count: number;
             /** Tags */
             tags?: string[];
         };
@@ -894,6 +899,11 @@ export interface components {
             story?: components["schemas"]["StoryRefOut"] | null;
             /** Act Id */
             act_id?: number | null;
+            /**
+             * Act Item Count
+             * @default 0
+             */
+            act_item_count: number;
             /** Tags */
             tags?: string[];
             /** Raw Text */
@@ -1005,6 +1015,11 @@ export interface components {
             title: string;
             /** Is Active */
             is_active: boolean;
+            /**
+             * Is Archived
+             * @default false
+             */
+            is_archived: boolean;
             /** Poll Interval Min */
             poll_interval_min: number;
             /** Last Polled At */
@@ -1531,7 +1546,10 @@ export interface operations {
     };
     list_sources_api_sources_get: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description показать удалённые источники */
+                archived?: boolean;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -1545,6 +1563,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SourceOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

@@ -45,6 +45,10 @@ class Source(Base):
 
     # Отключение без удаления: собранные материалы остаются (FR-004).
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
+    # Удалённый источник, у которого есть собранные материалы. Строку в базе
+    # стираем не полностью — иначе лента теряет происхождение материалов (FR-004), —
+    # но из списка источников он исчезает, как и ожидает пользователь.
+    is_archived: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
     poll_interval_min: Mapped[int] = mapped_column(Integer, default=15)
 
     last_polled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

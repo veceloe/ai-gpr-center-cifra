@@ -5,8 +5,8 @@ from __future__ import annotations
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Integer, String, Text
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Integer, String, Text, func, select
+from sqlalchemy.orm import Mapped, column_property, mapped_column, relationship
 
 from src.models._base import Author, Base, ItemType, Topic, utcnow
 
@@ -146,3 +146,18 @@ class Summary(Base):
         """Счётчик «N утверждений не подтверждены» — молчаливое отбрасывание
         рождает страх пропуска и параллельный Excel."""
         return [c for c in self.claims if not (c.get("quote_found") and c.get("entailed"))]
+
+
+# Сколько всего материалов привязано к тому же досье, что и этот. Лента
+# показывает по акту одну карточку, а счётчик объясняет, что за ней ещё N
+# публикаций: без него схлопывание выглядит как потеря материалов.
+# Объявлено после класса — подзапрос ссылается на саму таблицу через алиас.
+# Алиас таблицы, а не класса: aliased() на уровне импорта заставляет SQLAlchemy
+# настроить мапперы раньше, чем загружены все модели, и импорт падает.
+_sibling = Item.__table__.alias("act_sibling")
+Item.act_item_count = column_property(
+    select(func.count(_sibling.c.id))
+    .where(_sibling.c.act_id == Item.act_id, Item.act_id.isnot(None))
+    .scalar_subquery(),
+    deferred=False,
+)
