@@ -1,0 +1,13 @@
+Отчёт о качестве оценки
+Профиль: GS Labs
+Модель: z-ai/glm-5.3-flash
+Дата: 06.09.2026 08:58
+======================================================================
+
+Карточек оценено: 0 из 42
+Не удалось оценить: 42
+  #1 Законопроект CAS DRM (№ 1215252-8) — модель: fallback: HTTP 400 от https://openrouter.ai/api/v1: {"error":{"message":"Reasoning is mandatory for this endpoint and cannot be disabled.","code":400,"metadata"
+  #2 О поддержке развития технологий ИИ в РФ (ФЗ № 243- — модель: fallback: HTTP 400 от https://openrouter.ai/api/v1: {"error":{"message":"Reasoning is mandatory for this endpoint and cannot be disabled.","code":400,"metadata"
+  #3 Кризис рынка ЦОД — модель: fallback: HTTP 400 от https://openrouter.ai/api/v1: {"error":{"message":"Reasoning is mandatory for this endpoint and cannot be disabled.","code":400,"metadata"
+  #4 Упрощение закупочных процедур (ФЗ № 279-ФЗ, изм. в — модель: fallback: HTTP 400 от https://openrouter.ai/api/v1: {"error":{"message":"Reasoning is mandatory for this endpoint and cannot be disabled.","code":400,"metadata"
+  #5 Разработаны показатели по внедрению ИИ для всех от — модель: fallback: HTTP 400 от https://openrouter.ai/api/v1: {"error":{"message":"Reasoning is mandatory for this endpoint and cannot be disabled.","code":400,"metadata"

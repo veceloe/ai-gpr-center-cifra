@@ -97,6 +97,12 @@ class ProcessResult:
     act_stage_candidate: ActStage | None = None
     error: str | None = None
     duration_seconds: float = 0.0
+    # Догоняющая кластеризация уже обработанных карточек — не обработка материала.
+    # Пока признака не было, эти записи попадали в общий список и портили отчёт:
+    # число «обработано» завышалось, а среднее время на материал занижалось,
+    # потому что у них нулевая длительность. Ровно из этого получилась неверная
+    # цифра SC-003 в первом прогоне корпуса.
+    is_clustering_only: bool = False
 
     def __post_init__(self) -> None:
         self.skipped_fields = self.skipped_fields or []
@@ -556,13 +562,19 @@ async def process_unprocessed(
 
     results: list[ProcessResult] = []
     for item in items:
+        # Идентификатор снимаем заранее: rollback сбрасывает состояние объекта,
+        # и обращение к item.id внутри обработчика ошибки лезет в базу. В асинхронном
+        # контексте это падает с MissingGreenlet — обработчик сам роняет прогон,
+        # а настоящая причина сбоя теряется. Так один заблокированный файл базы
+        # оборвал переобработку корпуса на 49-м материале из 184.
+        item_id = item.id
         try:
             results.append(await process_item(session, item, provider, profile))
             await session.commit()
         except Exception as exc:
             await session.rollback()
-            logger.exception("Item %s: обработка провалилась", item.id)
-            results.append(ProcessResult(item_id=item.id, error=str(exc)[:300]))
+            logger.exception("Item %s: обработка провалилась", item_id)
+            results.append(ProcessResult(item_id=item_id, error=str(exc)[:300]))
 
     # Даже при полной очереди обработки оставляем слоты на кластеризацию
     # уже размеченных карточек — иначе US6 на живой базе не стартует.
@@ -591,17 +603,21 @@ async def process_unprocessed(
             .all()
         )
         for item in pending:
+            item_id = item.id  # см. выше: после rollback обращение к item.id падает
             try:
                 story = await cluster_item(session, item, provider)
                 await session.commit()
                 results.append(
                     ProcessResult(
-                        item_id=item.id,
+                        item_id=item_id,
                         clustered=story is not None and story.item_count > 1,
+                        is_clustering_only=True,
                     )
                 )
             except Exception as exc:
                 await session.rollback()
-                logger.exception("Item %s: догоняющая кластеризация провалилась", item.id)
-                results.append(ProcessResult(item_id=item.id, error=str(exc)[:300]))
+                logger.exception("Item %s: догоняющая кластеризация провалилась", item_id)
+                results.append(
+                    ProcessResult(item_id=item_id, error=str(exc)[:300], is_clustering_only=True)
+                )
     return results

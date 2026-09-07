@@ -9,6 +9,7 @@ import httpx
 import pytest
 from pydantic import ValidationError
 
+from src.config import Settings
 from src.llm.cache import ResponseCache, cache_key
 from src.llm.contracts import (
     ClaimVerdict,
@@ -19,7 +20,13 @@ from src.llm.contracts import (
     VerifyClaimsResult,
 )
 from src.llm.prompts import CLASSIFY, DEDUP_PAIR, SUMMARIZE, VERIFY_CLAIMS, build_score_prompt
-from src.llm.provider import FallbackProvider, LLMError, OpenAICompatibleProvider
+from src.llm.provider import (
+    FallbackProvider,
+    LLMError,
+    OpenAICompatibleProvider,
+    RoutingProvider,
+    build_provider,
+)
 from src.models import AssessmentScheme, Topic
 from src.scoring import get_scoring_config
 
@@ -326,8 +333,8 @@ def test_prompt_ids_cover_current_llm_contract() -> None:
     assert VERIFY_CLAIMS.id == "verify_claims/v1"
     assert CLASSIFY.id == "classify/v1"
     assert DEDUP_PAIR.id == "dedup_pair/v1"
-    assert score_news.id == "score_news/v1"
-    assert score_npa.id == "score_npa/v1"
+    assert score_news.id == "score_news/v3"
+    assert score_npa.id == "score_npa/v3"
     assert "Сегодняшняя дата: 2026-09-03" in score_news.system
     assert "Не определяй итоговую категорию" in score_npa.system
 
@@ -366,3 +373,90 @@ async def test_api_key_is_not_exposed_in_logs_or_exceptions(
 
     assert "sk-test-api-key" not in str(exc_info.value)
     assert "sk-test-api-key" not in caplog.text
+
+
+def test_empty_scores_are_rejected_so_provider_retries() -> None:
+    """Пустой набор баллов должен падать на контракте, а не позже.
+
+    Иначе повтор запроса не срабатывает: контракт отвечает «валидно», а
+    отбраковка происходит уже при подсчёте индекса, и материал остаётся
+    без оценки из-за одного неудачного ответа модели.
+    """
+    with pytest.raises(ValidationError):
+        ScoreResultRaw(scores={}, rationales={}, escalation_candidates=[])
+
+    ok = ScoreResultRaw(scores={"К1": 2}, rationales={}, escalation_candidates=[])
+    assert ok.scores == {"К1": 2}
+
+
+def test_latin_lookalike_criterion_codes_are_normalized() -> None:
+    """Латинские K и H приводятся к кириллическим К и Н.
+
+    Модель иногда возвращает «K1» с латинской K вместо кириллической: JSON
+    выглядит безупречно, а коды не совпадают ни с одним из наших, и материал
+    молча остаётся без оценки. Найдено при сравнении моделей — три карточки
+    из 42 у deepseek-v4-flash.
+    """
+    result = ScoreResultRaw(
+        scores={"K1": 3, "K2": 0},
+        rationales={"H1": "обоснование"},
+        escalation_candidates=[],
+    )
+    assert list(result.scores) == ["К1", "К2"]
+    assert [hex(ord(code[0])) for code in result.scores] == ["0x41a", "0x41a"]
+    assert list(result.rationales) == ["Н1"]
+    assert [hex(ord(code[0])) for code in result.rationales] == ["0x41d"]
+
+
+def test_score_range_and_type_checks_survive_normalization() -> None:
+    """Нормализация кодов не должна ослабить проверку самих баллов."""
+    for bad in ({"K1": True}, {"К1": 9}, {"К1": "3"}):
+        with pytest.raises(ValidationError):
+            ScoreResultRaw(scores=bad, rationales={}, escalation_candidates=[])
+
+
+class RecordingProvider:
+    """Провайдер-протокол для проверки маршрутизации: помнит, что через него прошло."""
+
+    def __init__(self, model: str) -> None:
+        self.name = model
+        self.model = model
+        self.calls: list[str] = []
+
+    async def complete_json(self, prompt_id: str, system: str, user: str, schema):
+        self.calls.append(prompt_id)
+        return schema.model_construct()
+
+
+@pytest.mark.asyncio
+async def test_routing_provider_sends_only_scoring_to_the_reasoning_model() -> None:
+    """Оценка идёт на рассуждающую модель, остальные шаги — на быструю.
+
+    Преимущество рассуждающей модели измерено только на оценке. Отправлять на
+    неё саммари и заземление значит менять неизмеренное и терять право на уже
+    полученные цифры заземления, а каждый её вызов стоит десятки секунд при
+    бюджете SC-003 в 10-15 секунд на публикацию.
+    """
+    fast = RecordingProvider("fast-model")
+    scoring = RecordingProvider("reasoning-model")
+    provider = RoutingProvider(fast=fast, scoring=scoring)
+
+    for prompt_id in ("summarize/v1", "verify_claims/v1", "classify/v1", "dedup_pair/v1"):
+        await provider.complete_json(prompt_id, "s", "u", ClassifyResult)
+    for prompt_id in ("score_npa/v3", "score_news/v3"):
+        await provider.complete_json(prompt_id, "s", "u", ClassifyResult)
+
+    assert fast.calls == ["summarize/v1", "verify_claims/v1", "classify/v1", "dedup_pair/v1"]
+    assert scoring.calls == ["score_npa/v3", "score_news/v3"]
+    assert provider.model == "reasoning-model", "модель последнего вызова видна снаружи"
+
+
+def test_single_model_config_does_not_build_a_router() -> None:
+    """Без указанной быстрой модели поведение прежнее — одна модель на конвейер."""
+    cfg = Settings(
+        llm_base_url="https://example.test/v1",
+        llm_model="one-model",
+        llm_api_key="k",
+        llm_cache_enabled=False,
+    )
+    assert not isinstance(build_provider(cfg), RoutingProvider)

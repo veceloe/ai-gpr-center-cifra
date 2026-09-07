@@ -66,6 +66,18 @@ class ActLifecycleResult(BaseModel):
             raise ValueError("stage_candidate требует evidence_quote")
         return self
 
+# Латинские двойники кириллических букв, которыми названы критерии. Модель
+# иногда возвращает «K1» с латинской K (U+004B) вместо кириллической К (U+041A)
+# и «H1» с латинской H вместо Н: на вид JSON безупречен, а коды критериев не
+# совпадают ни с одним из наших, и материал молча остаётся без оценки.
+# Найдено при сравнении моделей: три карточки из 42 у deepseek-v4-flash.
+HOMOGLYPHS = {"K": "К", "H": "Н"}
+
+
+def normalize_criterion_code(code: str) -> str:
+    """Привести код критерия к кириллице, если модель прислала латинский двойник."""
+    return "".join(HOMOGLYPHS.get(ch, ch) for ch in code)
+
 
 class ScoreResultRaw(BaseModel):
     """LLM-03 и LLM-04 · score_npa / score_news.
@@ -77,15 +89,31 @@ class ScoreResultRaw(BaseModel):
     rationales: dict[str, str] = Field(default_factory=dict)
     escalation_candidates: list[str] = Field(default_factory=list)
 
+    @field_validator("rationales", mode="before")
+    @classmethod
+    def _rationale_codes(cls, v: dict) -> dict:
+        if not isinstance(v, dict):
+            return v
+        return {normalize_criterion_code(str(code)): value for code, value in v.items()}
+
     @field_validator("scores", mode="before")
     @classmethod
     def _scores_in_range(cls, v: dict[str, int]) -> dict[str, int]:
-        for code, value in v.items():
+        # Пустой набор баллов — никогда не валидный ответ, какой бы ни была схема.
+        # Раньше он проходил контракт и отбраковывался позже, при подсчёте индекса,
+        # так что повтор запроса не срабатывал и материал молча оставался без
+        # оценки. Отклоняем здесь — и провайдер спрашивает модель ещё раз.
+        if not isinstance(v, dict) or not v:
+            raise ValueError("модель не вернула ни одного балла")
+        clean: dict[str, int] = {}
+        for raw_code, value in v.items():
+            code = normalize_criterion_code(str(raw_code))
             if isinstance(value, bool) or not isinstance(value, int):
                 raise ValueError(f"{code}: балл должен быть целым, получено {value!r}")
             if not MIN_SCORE <= value <= MAX_SCORE:
                 raise ValueError(f"{code}: балл {value} вне диапазона {MIN_SCORE}-{MAX_SCORE}")
-        return v
+            clean[code] = value
+        return clean
 
 
 class ClaimVerdict(BaseModel):

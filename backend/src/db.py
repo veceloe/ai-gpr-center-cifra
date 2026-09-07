@@ -26,6 +26,14 @@ def register_sqlite_functions(engine: AsyncEngine) -> None:
 
     @event.listens_for(engine.sync_engine, "connect")
     def _register(dbapi_connection, _record) -> None:  # pragma: no cover - callback драйвера
+        # Журнал WAL: чтение не блокирует запись. Без него открытая в браузере
+        # лента держит блокировку, и фоновая обработка падает с «database is
+        # locked» — то есть просмотр ленты во время сбора ломает сбор.
+        # busy_timeout даёт записи подождать вместо мгновенной ошибки.
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA journal_mode=WAL")
+        cursor.execute("PRAGMA busy_timeout=10000")
+        cursor.close()
         dbapi_connection.create_function(
             "lower", 1, lambda value: value.lower() if isinstance(value, str) else value
         )

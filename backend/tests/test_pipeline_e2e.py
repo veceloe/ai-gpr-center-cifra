@@ -37,7 +37,7 @@ from src.models import (
     Story,
     Topic,
 )
-from src.pipeline.runner import process_item
+from src.pipeline.runner import process_item, process_unprocessed
 from src.scoring import get_scoring_config
 
 
@@ -148,7 +148,7 @@ async def test_full_pipeline_produces_grounded_and_scored_card(
         "verify_claims/v1",
         "classify/v1",
         "act_lifecycle/v1",
-        "score_npa/v1",
+        "score_npa/v3",
     ]
 
     assessment = item.current_assessment
@@ -183,8 +183,8 @@ async def test_collected_act_item_type_selects_npa_scoring(
     await process_item(session, stored, provider, profile)
 
     assert stored.item_type == ItemType.ACT
-    assert "score_npa/v1" in provider.calls
-    assert "score_news/v1" not in provider.calls
+    assert "score_npa/v3" in provider.calls
+    assert "score_news/v3" not in provider.calls
 
 
 @pytest.mark.asyncio
@@ -205,8 +205,8 @@ async def test_collected_news_item_type_selects_news_scoring(
     await process_item(session, stored, provider, profile)
 
     assert stored.item_type == ItemType.NEWS
-    assert "score_news/v1" in provider.calls
-    assert "score_npa/v1" not in provider.calls
+    assert "score_news/v3" in provider.calls
+    assert "score_npa/v3" not in provider.calls
     assert "act_lifecycle/v1" not in provider.calls
 
 
@@ -230,8 +230,8 @@ async def test_classify_response_cannot_retype_act_item(
 
     assert item.item_type == ItemType.ACT
     assert result.act_identifier == "Законопроект № 1215252-8"
-    assert "score_npa/v1" in provider.calls
-    assert "score_news/v1" not in provider.calls
+    assert "score_npa/v3" in provider.calls
+    assert "score_news/v3" not in provider.calls
 
 
 @pytest.mark.asyncio
@@ -479,7 +479,7 @@ async def test_missing_act_identifier_does_not_fail_pipeline(
     assert result.act_identifier.startswith("url:")
     assert item.act_identifier == result.act_identifier
     assert item.act_id is not None
-    assert "score_npa/v1" in provider.calls
+    assert "score_npa/v3" in provider.calls
 
 
 @pytest.mark.asyncio
@@ -838,7 +838,7 @@ async def test_semantically_rejected_claim_never_reaches_summary_or_scoring(
     assert "уголовн" not in summary.text.lower()
     assert summary.rejected_claims[0]["reject_reason"] == "not_entailed"
     downstream_payloads = [
-        user for prompt_id, user in provider.users if prompt_id in {"classify/v1", "score_npa/v1"}
+        user for prompt_id, user in provider.users if prompt_id in {"classify/v1", "score_npa/v3"}
     ]
     assert downstream_payloads
     assert all("уголовную ответственность" not in user for user in downstream_payloads)
@@ -850,7 +850,7 @@ async def test_failed_scoring_keeps_item_in_feed(
 ) -> None:
     """Отказ модели на оценке не теряет материал — он попадает в ленту с пометкой."""
     provider = StubProvider()
-    provider.fail_on = {"score_npa/v1"}
+    provider.fail_on = {"score_npa/v3"}
 
     result = await process_item(session, item, provider, profile)
     await session.commit()
@@ -998,3 +998,70 @@ async def test_second_publication_moves_previous_act_assessment_into_history(
     )
     assert len(history) == 2, "вторая публикация должна добавить точку в историю, а не заменить её"
     assert [a.is_current for a in history] == [False, True]
+
+
+@pytest.mark.asyncio
+async def test_clustering_catch_up_is_not_counted_as_processing(
+    session: AsyncSession, item: Item, source, profile: CompanyProfile
+) -> None:
+    """Догоняющая кластеризация не должна попадать в статистику обработки.
+
+    Её записи имеют нулевую длительность. Пока они лежали в общем списке,
+    отчёт завышал число обработанных материалов и занижал среднее время —
+    именно так получилась неверная цифра по SC-003 в первом прогоне корпуса.
+    """
+    done = Item(
+        source_id=source.id,
+        url="https://example.test/already-processed",
+        title="Уже обработанная новость",
+        raw_text=item_text(),
+        content_hash="already-processed",
+        item_type=ItemType.NEWS,
+        published_at=datetime(2026, 9, 1, tzinfo=UTC),
+        processed_at=datetime(2026, 9, 1, tzinfo=UTC),
+    )
+    session.add(done)
+    await session.flush()
+
+    results = await process_unprocessed(session, StubProvider(), limit=5)
+
+    processed = [r for r in results if not r.is_clustering_only]
+    catching_up = [r for r in results if r.is_clustering_only]
+
+    assert [r.item_id for r in processed] == [item.id]
+    assert done.id in [r.item_id for r in catching_up]
+    assert all(r.duration_seconds == 0.0 for r in catching_up)
+    assert processed[0].duration_seconds >= 0.0
+
+
+@pytest.mark.asyncio
+async def test_failed_item_does_not_abort_the_whole_batch(
+    session: AsyncSession, item: Item, source, profile: CompanyProfile
+) -> None:
+    """Сбой на одном материале не должен ронять весь прогон.
+
+    Обработчик ошибки читал `item.id` уже после `rollback()`, а откат сбрасывает
+    состояние объекта: обращение лезло в базу и падало с MissingGreenlet.
+    Обработчик ронял прогон сам, и настоящая причина сбоя терялась — так
+    заблокированный файл базы оборвал переобработку корпуса на 49-м материале.
+    """
+    second = Item(
+        source_id=source.id,
+        url="https://example.test/second-item",
+        title="Второй материал",
+        raw_text=item_text(),
+        content_hash="second-item",
+        item_type=ItemType.ACT,
+        published_at=datetime(2026, 9, 1, tzinfo=UTC),
+    )
+    session.add(second)
+    await session.flush()
+
+    provider = StubProvider()
+    provider.fail_on = {"summarize/v1"}
+
+    results = await process_unprocessed(session, provider, limit=5)
+
+    processed = [r for r in results if not r.is_clustering_only]
+    assert len(processed) == 2, "оба материала должны получить результат, а не оборвать прогон"
+    assert {r.item_id for r in processed} == {item.id, second.id}

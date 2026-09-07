@@ -59,6 +59,7 @@ class OpenAICompatibleProvider:
         verify_tls: bool,
         max_retries: int,
         cache: ResponseCache | None,
+        reasoning: str = "",
     ) -> None:
         self.name = name
         self.model = model
@@ -69,9 +70,13 @@ class OpenAICompatibleProvider:
         self._verify_tls = verify_tls
         self._max_retries = max_retries
         self._cache = cache
+        self._reasoning = reasoning.strip().lower()
 
     async def complete_json(self, prompt_id: str, system: str, user: str, schema: type[T]) -> T:
-        key = cache_key(prompt_id, self.model, system + "\x00" + user)
+        # Режим рассуждения входит в ключ: ответ, полученный с рассуждением,
+        # не должен подставляться в прогон, который его выключил.
+        variant = f"{self.model}|reasoning={self._reasoning or 'default'}"
+        key = cache_key(prompt_id, variant, system + "\x00" + user)
         if self._cache is not None:
             cached = self._cache.get(key)
             if cached is not None:
@@ -137,6 +142,10 @@ class OpenAICompatibleProvider:
             "temperature": self._temperature,
             "response_format": {"type": "json_object"},
         }
+        if self._reasoning:
+            body["reasoning"] = (
+                {"enabled": False} if self._reasoning == "off" else {"effort": self._reasoning}
+            )
 
         async with httpx.AsyncClient(timeout=self._timeout, verify=self._verify_tls) as client:
             response = await client.post(
@@ -182,6 +191,34 @@ class FallbackProvider:
             return result
 
 
+class RoutingProvider:
+    """Разные модели на разных шагах конвейера — ADR-0010.
+
+    Оценка идёт на рассуждающей модели: её преимущество измерено на эталоне
+    заказчика. Саммари, проверка утверждений и классификация остаются на быстрой
+    модели без рассуждения — их качество на рассуждающей модели не измерялось,
+    а каждый её вызов стоит десятки секунд при бюджете SC-003 в 10-15 с.
+
+    Маршрутизация по идентификатору промпта, а не по типу материала: промпт —
+    единственное, что различает шаги конвейера на этом уровне.
+    """
+
+    def __init__(self, fast: LLMProvider, scoring: LLMProvider) -> None:
+        self._fast = fast
+        self._scoring = scoring
+        self.name = f"{fast.name}/оценка:{scoring.name}"
+        self.model = fast.model
+
+    def _pick(self, prompt_id: str) -> LLMProvider:
+        return self._scoring if prompt_id.startswith("score_") else self._fast
+
+    async def complete_json(self, prompt_id: str, system: str, user: str, schema: type[T]) -> T:
+        provider = self._pick(prompt_id)
+        result = await provider.complete_json(prompt_id, system, user, schema)
+        self.model = provider.model
+        return result
+
+
 def build_provider(settings: Settings | None = None) -> LLMProvider:
     cfg = settings or get_settings()
     cache = ResponseCache() if cfg.llm_cache_enabled else None
@@ -195,11 +232,30 @@ def build_provider(settings: Settings | None = None) -> LLMProvider:
         timeout=cfg.llm_timeout_seconds,
         verify_tls=cfg.llm_verify_tls,
         max_retries=cfg.llm_max_retries,
+        reasoning=cfg.llm_reasoning,
         cache=cache,
     )
 
+    # Быстрая полоса: всё, кроме оценки. Резерв подключается к той полосе,
+    # которая реально ходит в сеть чаще, поэтому строится вокруг маршрутизатора.
+    scoring_or_single = primary
+    if cfg.llm_fast_model.strip():
+        fast = OpenAICompatibleProvider(
+            name="fast",
+            base_url=cfg.llm_base_url,
+            model=cfg.llm_fast_model,
+            api_key=cfg.llm_api_key,
+            temperature=cfg.llm_temperature,
+            timeout=cfg.llm_timeout_seconds,
+            verify_tls=cfg.llm_verify_tls,
+            max_retries=cfg.llm_max_retries,
+            reasoning="",
+            cache=cache,
+        )
+        scoring_or_single = RoutingProvider(fast=fast, scoring=primary)
+
     if not cfg.llm_fallback_configured:
-        return primary
+        return scoring_or_single
 
     fallback = OpenAICompatibleProvider(
         name="fallback",
@@ -210,6 +266,7 @@ def build_provider(settings: Settings | None = None) -> LLMProvider:
         timeout=cfg.llm_timeout_seconds,
         verify_tls=cfg.llm_verify_tls,
         max_retries=cfg.llm_max_retries,
+        reasoning=cfg.llm_reasoning,
         cache=cache,
     )
-    return FallbackProvider(primary, fallback)
+    return FallbackProvider(scoring_or_single, fallback)
