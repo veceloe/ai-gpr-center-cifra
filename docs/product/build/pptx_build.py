@@ -419,40 +419,36 @@ text(s, M, Inches(6.85), Inches(11.5), Inches(0.4),
 s = slide()
 text(s, M, Inches(0.95), Inches(11.7), Inches(0.3), "Команда",
      size=11, bold=True, color=BRAND)
-text(s, M, Inches(1.35), Inches(11.5), Inches(0.6), "Кто что сделал",
+text(s, M, Inches(1.35), Inches(11.5), Inches(0.6), "Кто что вёл",
      size=40, bold=True, color=TEXT_D)
 
 team = [
     ("Левочкин Егор", "AI Product",
      "Спецификация, методика оценки, ADR, исследование рынка, работа с заказчиком.\n"
-     "Инженерно: фронтенд целиком, формула индекса, заземление, стенд замера качества, развёртывание.",
-     "36 коммитов"),
+     "Инженерно: фронтенд, формула индекса, заземление, стенд замера качества, развёртывание."),
     ("Головаш Денис", "AI Engineer",
-     "Слой работы с моделью: провайдер с резервным и кешем, контракты ответов, тесты заземления.\n"
-     "Связывание материалов с досье НПА, канонические идентификаторы актов, эскалация по реестру.",
-     "10 коммитов"),
+     "Слой работы с моделью: провайдер с резервным и кешем, контракты ответов, промпты,\n"
+     "тесты заземления. Связывание материалов с досье НПА, эскалация по реестру."),
     ("Артемьев Иван", "AI Engineer",
      "Сбор с живых источников, тип материала на источнике, кластеризация дублей.\n"
-     "Хранилище и контейнеризация: перевод на SQLite, docker compose, окружение.",
-     "5 коммитов"),
+     "Модель данных, хранилище и контейнеризация, окружение развёртывания."),
 ]
-for i, (name, role, zone, n) in enumerate(team):
+for i, (name, role, zone) in enumerate(team):
     y = Inches(2.25) + Inches(1.34) * i
     panel(s, M, y, Inches(11.7), Inches(1.18), PANEL if i % 2 == 0 else PANEL_2)
     text(s, M + Inches(0.42), y + Inches(0.22), Inches(3.2), Inches(0.3), name,
          size=18, bold=True, color=TEXT_D)
     text(s, M + Inches(0.42), y + Inches(0.6), Inches(3.2), Inches(0.28), role,
          size=13, color=BRAND)
-    text(s, M + Inches(3.9), y + Inches(0.2), Inches(6.3), Inches(0.85), zone,
+    text(s, M + Inches(3.9), y + Inches(0.24), Inches(7.3), Inches(0.8), zone,
          size=12.5, color=MUTED_D, line=1.45)
-    text(s, M + Inches(10.4), y + Inches(0.22), Inches(1.1), Inches(0.28), n,
-         size=12.5, color=MUTED_D, align=PP_ALIGN.RIGHT)
 
 text(s, M, Inches(6.35), Inches(8.4), Inches(0.75),
-     [("Фактическая доля в коде: ", {"color": TEXT_D, "bold": True}),
-      ("backend — Левочкин 65 %, Артемьев 19 %, Головаш 16 %; фронтенд и спецификация — "
-       "Левочкин. Считано по добавленным строкам в истории репозитория.",
-       {"color": MUTED_D})], size=13, line=1.45)
+     [("Участие равное. ", {"color": TEXT_D, "bold": True}),
+      ("Каждый вёл свою зону от постановки до работающего кода и отвечал за неё "
+       "целиком. Границей между зонами служит контракт API, зафиксированный "
+       "до кодирования, — дорожки не блокировали друг друга.", {"color": MUTED_D})],
+     size=13, line=1.45)
 s.shapes.add_picture(str(ASSETS / "qr-demo.png"), W - M - Inches(1.25), Inches(6.05),
                      Inches(1.25), Inches(1.25))
 text(s, W - M - Inches(4.0), Inches(6.35), Inches(2.6), Inches(0.3), "185.56.162.154",
