@@ -45,14 +45,43 @@ fi
 step "5/6 Сборка и запуск"
 $SSH "$USER_@$HOST" "cd $APP_DIR && docker compose up -d --build --remove-orphans"
 
-step "6/6 Health gate"
+step "6/7 Health gate"
+# Порт снаружи контейнера — 8239 (compose пробрасывает 8239:8000). Раньше здесь
+# стоял 8000, на котором на хосте никто не слушает, и проверка не могла пройти
+# в принципе: рабочий деплой объявлялся упавшим.
 $SSH "$USER_@$HOST" bash -s <<'REMOTE'
 set -uo pipefail
 cd /opt/ai-gpr-center
-for i in $(seq 1 24); do
-  if curl -fsS http://127.0.0.1:8000/api/health >/dev/null 2>&1; then echo "  health OK после $((i*5)) с"; exit 0; fi
+for i in $(seq 1 60); do
+  code=$(curl -s -o /dev/null -w '%{http_code}' -m 5 http://127.0.0.1:8239/api/health 2>/dev/null)
+  if [ "$code" = "200" ]; then echo "  health OK после $((i*5)) с"; exit 0; fi
   sleep 5
 done
-echo "  backend не ответил за 120 с"; docker compose ps; docker compose logs --tail 100; exit 1
+echo "  backend не ответил за 300 с, последний код: ${code:-нет}"
+docker compose ps; docker compose logs --tail 60; exit 1
 REMOTE
-echo; echo "Задеплоено — http://$HOST:8000/api/health"
+
+step "7/7 Данные демо"
+# Пустая лента — не демонстрация. Переносим локальную базу с уже обработанными
+# материалами. DEPLOY_SEED_DB=0 отключает перенос, если на сервере свои данные.
+if [ "${DEPLOY_SEED_DB:-0}" = "1" ] && [ -f backend/data/app.db ]; then
+  $SSH "$USER_@$HOST" "cat > /tmp/app.db" < backend/data/app.db
+  $SSH "$USER_@$HOST" bash -s <<'REMOTE'
+set -euo pipefail
+cd /opt/ai-gpr-center
+V=/var/lib/docker/volumes/ai-gpr-center_backend_data/_data
+docker compose stop backend >/dev/null 2>&1
+# Файлы журнала принадлежат прежней базе: при старте они переигрываются поверх
+# новой и стирают её содержимое. Удалять обязательно.
+rm -f "$V/app.db-wal" "$V/app.db-shm"
+cp /tmp/app.db "$V/app.db"
+rm -f /tmp/app.db
+docker compose start backend >/dev/null
+for i in $(seq 1 40); do curl -fsS http://127.0.0.1:8239/api/health >/dev/null 2>&1 && break; sleep 5; done
+echo "  база перенесена, материалов в ленте: $(curl -fsS 'http://127.0.0.1:8239/api/feed?limit=1' | python3 -c 'import sys,json; print(json.load(sys.stdin)["total"])')"
+REMOTE
+else
+  echo "  перенос базы пропущен (DEPLOY_SEED_DB=1 включает)"
+fi
+
+echo; echo "Задеплоено — http://$HOST/"
